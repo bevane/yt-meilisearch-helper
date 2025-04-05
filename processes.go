@@ -1,9 +1,12 @@
 package main
 
 import (
+	"errors"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 func initDataDir(dataPath string) error {
@@ -21,7 +24,12 @@ func initDataDir(dataPath string) error {
 	_, err := os.Stat(progressPath)
 	if err != nil && os.IsNotExist(err) {
 		slog.Info("progress.json not found, creating progress.json")
-		_, err := os.Create(progressPath)
+		progressFile, err := os.Create(progressPath)
+		if err != nil {
+			return err
+		}
+		defer progressFile.Close()
+		_, err = progressFile.Write([]byte("{}"))
 		if err != nil {
 			return err
 		}
@@ -31,7 +39,12 @@ func initDataDir(dataPath string) error {
 	_, err = os.Stat(indexPath)
 	if err != nil && os.IsNotExist(err) {
 		slog.Info("videos.json not found, creating videos.json")
-		_, err := os.Create(indexPath)
+		indexFile, err := os.Create(indexPath)
+		if err != nil {
+			return err
+		}
+		defer indexFile.Close()
+		_, err = indexFile.Write([]byte("{}"))
 		if err != nil {
 			return err
 		}
