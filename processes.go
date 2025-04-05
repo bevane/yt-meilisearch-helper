@@ -77,6 +77,7 @@ func initDataDir(dataPath string) error {
 }
 
 func gatherVideos(url string, videoProcessingStatus VideoProcessingStatus) error {
+	slog.Info("Checking channel for new videos")
 	cmdFetch := exec.Command("yt-dlp", "--flat-playlist", "--print", "id", url)
 	out, err := cmdFetch.CombinedOutput()
 	if err != nil {
