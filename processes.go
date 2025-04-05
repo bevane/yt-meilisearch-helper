@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -72,5 +73,26 @@ func initDataDir(dataPath string) error {
 	} else if err == nil {
 		slog.Info("transcripts directory not found, creating transcripts directory")
 	}
+	return nil
+}
+
+func gatherVideos(url string, videoProcessingStatus VideoProcessingStatus) error {
+	cmdFetch := exec.Command("yt-dlp", "--flat-playlist", "--print", "id", url)
+	out, err := cmdFetch.CombinedOutput()
+	if err != nil {
+		return errors.New(string(out))
+	}
+	var count int
+	for videoId := range strings.SplitSeq(string(out), "\n") {
+		if _, ok := videoProcessingStatus[videoId]; ok {
+			continue
+		}
+		if videoId == "" {
+			continue
+		}
+		count++
+		videoProcessingStatus[videoId] = "pending"
+	}
+	slog.Info(fmt.Sprintf("%v new videos have been added to the queue and are pending download", count))
 	return nil
 }
