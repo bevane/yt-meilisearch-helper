@@ -13,9 +13,10 @@ type VideoProcessingStatus map[string]string
 func main() {
 	godotenv.Load(".env")
 	dataPath := os.Getenv("DATA_PATH")
+	fmt.Printf("Setting project directory to %s\n", dataPath)
 	err := initDataDir(dataPath)
 	if err != nil {
-		slog.Error(fmt.Sprintf("Error initializing project folder: %v", err.Error()))
+		slog.Error(fmt.Sprintf("Error initializing project folder: %v\n", err.Error()))
 		os.Exit(1)
 	}
 }
