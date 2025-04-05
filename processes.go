@@ -6,10 +6,58 @@ import (
 	"path/filepath"
 )
 
-func initDataDir(dataPath string) {
+func initDataDir(dataPath string) error {
 	progressPath := filepath.Join(dataPath, "progress.json")
-	if _, err := os.Stat(progressPath); os.IsNotExist(err) {
+	indexPath := filepath.Join(dataPath, "videos.json")
+	downloadsPath := filepath.Join(dataPath, "downloads")
+	processedPath := filepath.Join(dataPath, "processed")
+	transcriptsPath := filepath.Join(dataPath, "transcripts")
+
+	// the logic for creating files and directories will be different
+	// because os.Mkdir and os.Create return errors differently in case
+	// the file or directory already exists
+	// os.Create does not throw error if the file already exists and instead
+	// will truncate the file so check if file exists explicitly with os.Stat
+	_, err := os.Stat(progressPath)
+	if err != nil && os.IsNotExist(err) {
 		slog.Info("progress.json not found, creating progress.json")
-		os.Create(progressPath)
+		_, err := os.Create(progressPath)
+		if err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
 	}
+	_, err = os.Stat(indexPath)
+	if err != nil && os.IsNotExist(err) {
+		slog.Info("videos.json not found, creating videos.json")
+		_, err := os.Create(indexPath)
+		if err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
+	}
+
+	// os.Mkdir returns an error if the directory already exists
+	// so only create dir if the error is nil
+	err = os.Mkdir(downloadsPath, 0750)
+	if err != nil && !os.IsExist(err) {
+		return err
+	} else if err == nil {
+		slog.Info("downloads directory not found, creating downloads directory")
+	}
+	err = os.Mkdir(processedPath, 0750)
+	if err != nil && !os.IsExist(err) {
+		return err
+	} else if err == nil {
+		slog.Info("processed directory not found, creating processed directory")
+	}
+	err = os.Mkdir(transcriptsPath, 0750)
+	if err != nil && !os.IsExist(err) {
+		return err
+	} else if err == nil {
+		slog.Info("transcripts directory not found, creating transcripts directory")
+	}
+	return nil
 }
