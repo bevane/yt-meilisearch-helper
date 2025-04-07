@@ -39,8 +39,7 @@ func main() {
 
 	err = gatherVideos(channelUrl, videoProcessingStatus)
 	if err != nil {
-		slog.Error(fmt.Sprintf("Unable to gather videos: %v", err.Error()))
-		os.Exit(1)
+		slog.Warn(fmt.Sprintf("Unable to gather videos: %v", err.Error()))
 	}
 
 	updatedProgressData, err := json.MarshalIndent(videoProcessingStatus, "", "\t")
