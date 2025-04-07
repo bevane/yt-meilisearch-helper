@@ -80,11 +80,17 @@ func gatherVideos(url string, videoProcessingStatus VideoProcessingStatus) error
 	slog.Info("Checking channel for new videos")
 	cmdFetch := exec.Command("yt-dlp", "--flat-playlist", "--print", "id", url)
 	out, err := cmdFetch.CombinedOutput()
+	outString := string(out)
 	if err != nil {
-		return errors.New(string(out))
+		return errors.New(outString)
 	}
+	addNewVideosToProcessing(outString, videoProcessingStatus)
+	return nil
+}
+
+func addNewVideosToProcessing(videosList string, videoProcessingStatus VideoProcessingStatus) {
 	var count int
-	for videoId := range strings.SplitSeq(string(out), "\n") {
+	for videoId := range strings.SplitSeq(videosList, "\n") {
 		if _, ok := videoProcessingStatus[videoId]; ok {
 			continue
 		}
@@ -95,5 +101,4 @@ func gatherVideos(url string, videoProcessingStatus VideoProcessingStatus) error
 		videoProcessingStatus[videoId] = "pending"
 	}
 	slog.Info(fmt.Sprintf("%v new videos have been added to the queue and are pending download", count))
-	return nil
 }
