@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
 	"path/filepath"
 
 	"github.com/joho/godotenv"
@@ -13,9 +14,20 @@ import (
 type VideoProcessingStatus map[string]string
 
 func main() {
+
 	godotenv.Load(".env")
 	dataPath := os.Getenv("DATA_PATH")
 	channelUrl := os.Getenv("CHANNEL_URL")
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	go func() {
+		<-c
+		cleanup(dataPath)
+
+		os.Exit(130)
+	}()
+
 	slog.Info(fmt.Sprintf("Setting project directory to %s", dataPath))
 	slog.Info(fmt.Sprintf("Downloading and Processing videos for %s", channelUrl))
 	err := initDataDir(dataPath)

@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -115,4 +116,29 @@ func downloadVideo(videoId string, videoProcessingStatus VideoProcessingStatus, 
 		videoProcessingStatus[videoId] = "downloaded"
 	}
 
+}
+
+func cleanup(root string) {
+	slog.Info("Cleaning up and exiting")
+	fsys := os.DirFS(root)
+	fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			slog.Warn(fmt.Sprintf("Error accessing path %s: %v\n", path, err))
+			return nil // Continue walking despite the error
+		}
+
+		if !d.IsDir() {
+			filename := filepath.Base(path)
+			if strings.HasSuffix(filename, ".part") || strings.HasSuffix(filename, ".ytdl") {
+				fullPath := filepath.Join(root, path)
+				err := os.Remove(fullPath)
+				if err != nil {
+					slog.Warn(fmt.Sprintf("Error removing file %s: %v\n", path, err))
+					return nil // Continue walking despite the error
+				}
+				fmt.Printf("Cleanup: removed file: %s\n", fullPath)
+			}
+		}
+		return nil
+	})
 }
