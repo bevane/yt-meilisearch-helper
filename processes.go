@@ -108,7 +108,8 @@ func addNewVideosToProcessing(videosList string, videoProcessingStatus VideoProc
 func downloadVideo(videoId string, videoProcessingStatus VideoProcessingStatus, ouputPath string) {
 	slog.Info(fmt.Sprintf("Downloading video %s", videoId))
 	videoUrl := "youtube.com/watch?v=" + videoId
-	cmdFetch := exec.Command("yt-dlp", "-x", "-P", ouputPath, videoUrl)
+	// downloads audio only and saves it to the output path with name as videoId.m4a
+	cmdFetch := exec.Command("yt-dlp", "-x", "-P", ouputPath, "-o", "%(id)s.%(ext)s", videoUrl)
 	out, err := cmdFetch.CombinedOutput()
 	if err != nil {
 		slog.Error(fmt.Sprintf("Unable to download video %s: %s", videoId, string(out)))
