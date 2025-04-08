@@ -42,6 +42,17 @@ func main() {
 		slog.Warn(fmt.Sprintf("Unable to gather videos: %v", err.Error()))
 	}
 
+	for k, v := range videoProcessingStatus {
+		switch v {
+		case "pending":
+			downloadDir := filepath.Join(dataPath, "downloads")
+			downloadVideo(k, videoProcessingStatus, downloadDir)
+		default:
+			slog.Error(fmt.Sprintf("Unexpected video status: %s", v))
+
+		}
+	}
+
 	updatedProgressData, err := json.MarshalIndent(videoProcessingStatus, "", "\t")
 	if err != nil {
 		slog.Error(fmt.Sprintf("Unable to marshall progress.json data: %v", err.Error()))

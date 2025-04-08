@@ -102,3 +102,17 @@ func addNewVideosToProcessing(videosList string, videoProcessingStatus VideoProc
 	}
 	slog.Info(fmt.Sprintf("%v new videos have been added to the queue and are pending download", count))
 }
+
+func downloadVideo(videoId string, videoProcessingStatus VideoProcessingStatus, ouputPath string) {
+	slog.Info(fmt.Sprintf("Downloading video %s", videoId))
+	videoUrl := "youtube.com/watch?v=" + videoId
+	cmdFetch := exec.Command("yt-dlp", "-x", "-P", ouputPath, videoUrl)
+	out, err := cmdFetch.CombinedOutput()
+	if err != nil {
+		slog.Error(fmt.Sprintf("Unable to download video %s: %s", videoId, string(out)))
+	} else {
+		slog.Info(fmt.Sprintf("Downloaded video %s", videoId))
+		videoProcessingStatus[videoId] = "downloaded"
+	}
+
+}
