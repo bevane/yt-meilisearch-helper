@@ -129,7 +129,7 @@ func cleanup(root string) {
 
 		if !d.IsDir() {
 			filename := filepath.Base(path)
-			if strings.HasSuffix(filename, ".part") || strings.HasSuffix(filename, ".ytdl") {
+			if strings.HasSuffix(filename, ".cleanup") || strings.HasSuffix(filename, ".cleanup2") {
 				fullPath := filepath.Join(root, path)
 				err := os.Remove(fullPath)
 				if err != nil {
