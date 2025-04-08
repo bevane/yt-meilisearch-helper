@@ -55,11 +55,14 @@ func main() {
 		slog.Warn(fmt.Sprintf("Unable to gather videos: %v", err.Error()))
 	}
 
+	downloadDir := filepath.Join(dataPath, "downloads")
+	processedDir := filepath.Join(dataPath, "processed")
 	for k, v := range videoProcessingStatus {
 		switch v {
 		case "pending":
-			downloadDir := filepath.Join(dataPath, "downloads")
 			downloadVideo(k, videoProcessingStatus, downloadDir)
+		case "downloaded":
+			processVideo(k, downloadDir, processedDir, videoProcessingStatus)
 		default:
 			slog.Error(fmt.Sprintf("Unexpected video status: %s", v))
 
@@ -68,5 +71,4 @@ func main() {
 
 	cleanup(dataPath)
 	saveProgress(dataPath, videoProcessingStatus)
-
 }

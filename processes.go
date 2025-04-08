@@ -120,6 +120,22 @@ func downloadVideo(videoId string, videoProcessingStatus VideoProcessingStatus, 
 
 }
 
+func processVideo(videoId string, inputPath string, outputPath string, videoProcessingStatus VideoProcessingStatus) {
+	slog.Info(fmt.Sprintf("Processing video %s", videoId))
+	inputFilePath := filepath.Join(inputPath, fmt.Sprintf("%s.m4a", videoId))
+	outputFilePath := filepath.Join(outputPath, fmt.Sprintf("%s.wav", videoId))
+
+	cmdFetch := exec.Command("ffmpeg", "-i", inputFilePath, "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", outputFilePath)
+	out, err := cmdFetch.CombinedOutput()
+	if err != nil {
+		slog.Error(fmt.Sprintf("Unable to process video %s: %s", videoId, string(out)))
+	} else {
+		slog.Info(fmt.Sprintf("Processed video %s", videoId))
+		videoProcessingStatus[videoId] = "processed"
+	}
+
+}
+
 func cleanup(root string) {
 	slog.Info("Cleaning up and exiting")
 	fsys := os.DirFS(root)
