@@ -18,6 +18,7 @@ func main() {
 	godotenv.Load(".env")
 	dataPath := os.Getenv("DATA_PATH")
 	channelUrl := os.Getenv("CHANNEL_URL")
+	whisperModelPath := os.Getenv("WHISPER_MODEL_PATH")
 
 	slog.Info(fmt.Sprintf("Setting project directory to %s", dataPath))
 	slog.Info(fmt.Sprintf("Downloading and Processing videos for %s", channelUrl))
@@ -57,12 +58,15 @@ func main() {
 
 	downloadDir := filepath.Join(dataPath, "downloads")
 	processedDir := filepath.Join(dataPath, "processed")
+	transcriptsDir := filepath.Join(dataPath, "transcripts")
 	for k, v := range videoProcessingStatus {
 		switch v {
 		case "pending":
 			downloadVideo(k, videoProcessingStatus, downloadDir)
 		case "downloaded":
 			processVideo(k, downloadDir, processedDir, videoProcessingStatus)
+		case "processed":
+			transcribeVideo(k, processedDir, transcriptsDir, whisperModelPath, videoProcessingStatus)
 		default:
 			slog.Error(fmt.Sprintf("Unexpected video status: %s", v))
 

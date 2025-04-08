@@ -136,6 +136,22 @@ func processVideo(videoId string, inputPath string, outputPath string, videoProc
 
 }
 
+func transcribeVideo(videoId string, inputPath string, outputPath string, modelPath string, videoProcessingStatus VideoProcessingStatus) {
+	slog.Info(fmt.Sprintf("Transcribing video %s", videoId))
+	inputFilePath := filepath.Join(inputPath, fmt.Sprintf("%s.wav", videoId))
+	outputFilePath := filepath.Join(outputPath, videoId)
+
+	cmdFetch := exec.Command("whisper-cli", "-osrt", "-m", modelPath, "-f", inputFilePath, "-of", outputFilePath)
+	out, err := cmdFetch.CombinedOutput()
+	if err != nil {
+		slog.Error(fmt.Sprintf("Unable to transcribe video %s: %s", videoId, string(out)))
+	} else {
+		slog.Info(fmt.Sprintf("Transcribed video %s", videoId))
+		videoProcessingStatus[videoId] = "transcribed"
+	}
+
+}
+
 func cleanup(root string) {
 	slog.Info("Cleaning up and exiting")
 	fsys := os.DirFS(root)
