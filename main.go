@@ -19,15 +19,6 @@ func main() {
 	dataPath := os.Getenv("DATA_PATH")
 	channelUrl := os.Getenv("CHANNEL_URL")
 
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	go func() {
-		<-c
-		cleanup(dataPath)
-
-		os.Exit(130)
-	}()
-
 	slog.Info(fmt.Sprintf("Setting project directory to %s", dataPath))
 	slog.Info(fmt.Sprintf("Downloading and Processing videos for %s", channelUrl))
 	err := initDataDir(dataPath)
@@ -49,6 +40,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	go func() {
+		<-c
+		cleanup(dataPath)
+		saveProgress(dataPath, videoProcessingStatus)
+
+		os.Exit(130)
+	}()
+
 	err = gatherVideos(channelUrl, videoProcessingStatus)
 	if err != nil {
 		slog.Warn(fmt.Sprintf("Unable to gather videos: %v", err.Error()))
@@ -65,15 +66,7 @@ func main() {
 		}
 	}
 
-	updatedProgressData, err := json.MarshalIndent(videoProcessingStatus, "", "\t")
-	if err != nil {
-		slog.Error(fmt.Sprintf("Unable to marshall progress.json data: %v", err.Error()))
-		os.Exit(1)
-	}
+	cleanup(dataPath)
+	saveProgress(dataPath, videoProcessingStatus)
 
-	err = os.WriteFile(filepath.Join(dataPath, "progress.json"), updatedProgressData, 0666)
-	if err != nil {
-		slog.Error(fmt.Sprintf("Unable to write to progress.json: %v", err.Error()))
-		os.Exit(1)
-	}
 }

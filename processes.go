@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -141,4 +142,18 @@ func cleanup(root string) {
 		}
 		return nil
 	})
+}
+
+func saveProgress(projectPath string, videoProcessingStatus VideoProcessingStatus) {
+	updatedProgressData, err := json.MarshalIndent(videoProcessingStatus, "", "\t")
+	if err != nil {
+		slog.Error(fmt.Sprintf("Unable to marshall progress.json data: %v", err.Error()))
+		os.Exit(1)
+	}
+
+	err = os.WriteFile(filepath.Join(projectPath, "progress.json"), updatedProgressData, 0666)
+	if err != nil {
+		slog.Error(fmt.Sprintf("Unable to write to progress.json: %v", err.Error()))
+		os.Exit(1)
+	}
 }
