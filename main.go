@@ -70,6 +70,9 @@ func main() {
 	for range 5 {
 		go downloadWorker(downloadQueue, processQueue, downloadDir, videoProcessingStatus)
 		go processWorker(processQueue, transcribeQueue, downloadDir, processedDir, videoProcessingStatus)
+	}
+
+	for range 2 {
 		go transcribeWorker(transcribeQueue, processedDir, transcriptsDir, whisperModelPath, videoProcessingStatus, &wg)
 	}
 
