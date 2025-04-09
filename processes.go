@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 func initDataDir(dataPath string) error {
@@ -189,4 +190,30 @@ func saveProgress(projectPath string, videoProcessingStatus VideoProcessingStatu
 		slog.Error(fmt.Sprintf("Unable to write to progress.json: %v", err.Error()))
 		os.Exit(1)
 	}
+}
+
+func downloadWorker(downloadQueue <-chan string, processQueue chan<- string, outputPath string, progress VideoProcessingStatus, wg *sync.WaitGroup) {
+	for job := range downloadQueue {
+		downloadVideo(job, progress, outputPath)
+		processQueue <- job
+		wg.Done()
+	}
+	slog.Info("download worker done")
+}
+
+func processWorker(processQueue <-chan string, transcribeQueue chan<- string, inputPath string, outputPath string, progress VideoProcessingStatus, wg *sync.WaitGroup) {
+	for job := range processQueue {
+		processVideo(job, inputPath, outputPath, progress)
+		transcribeQueue <- job
+		wg.Done()
+	}
+	slog.Info("process worker done")
+}
+
+func transcribeWorker(transcribeQueue <-chan string, inputPath string, outputPath string, modelPath string, progress VideoProcessingStatus, wg *sync.WaitGroup) {
+	for job := range transcribeQueue {
+		transcribeVideo(job, inputPath, outputPath, modelPath, progress)
+		wg.Done()
+	}
+	slog.Info("transcribe worker done")
 }

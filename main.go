@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sync"
 
 	"github.com/joho/godotenv"
 )
@@ -59,19 +60,40 @@ func main() {
 	downloadDir := filepath.Join(dataPath, "downloads")
 	processedDir := filepath.Join(dataPath, "processed")
 	transcriptsDir := filepath.Join(dataPath, "transcripts")
-	for k, v := range videoProcessingStatus {
-		switch v {
+
+	downloadQueue := make(chan string)
+	processQueue := make(chan string)
+	transcribeQueue := make(chan string)
+
+	var wg sync.WaitGroup
+
+	for range 5 {
+		go downloadWorker(downloadQueue, processQueue, downloadDir, videoProcessingStatus, &wg)
+		go processWorker(processQueue, transcribeQueue, downloadDir, processedDir, videoProcessingStatus, &wg)
+		go transcribeWorker(transcribeQueue, processedDir, transcriptsDir, whisperModelPath, videoProcessingStatus, &wg)
+	}
+
+	for id, status := range videoProcessingStatus {
+		switch status {
 		case "pending":
-			downloadVideo(k, videoProcessingStatus, downloadDir)
+			slog.Info("Adding to download queue")
+			wg.Add(1)
+			downloadQueue <- id
 		case "downloaded":
-			processVideo(k, downloadDir, processedDir, videoProcessingStatus)
+			slog.Info("Adding to process queue")
+			wg.Add(1)
+			processQueue <- id
 		case "processed":
-			transcribeVideo(k, processedDir, transcriptsDir, whisperModelPath, videoProcessingStatus)
+			slog.Info("Adding to transcribe queue")
+			wg.Add(1)
+			transcribeQueue <- id
 		default:
-			slog.Error(fmt.Sprintf("Unexpected video status: %s", v))
+			slog.Error(fmt.Sprintf("Unexpected video status: %s", status))
 
 		}
 	}
+
+	wg.Wait()
 
 	cleanup(dataPath)
 	saveProgress(dataPath, videoProcessingStatus)
