@@ -68,8 +68,8 @@ func main() {
 	var wg sync.WaitGroup
 
 	for range 5 {
-		go downloadWorker(downloadQueue, processQueue, downloadDir, videoProcessingStatus, &wg)
-		go processWorker(processQueue, transcribeQueue, downloadDir, processedDir, videoProcessingStatus, &wg)
+		go downloadWorker(downloadQueue, processQueue, downloadDir, videoProcessingStatus)
+		go processWorker(processQueue, transcribeQueue, downloadDir, processedDir, videoProcessingStatus)
 		go transcribeWorker(transcribeQueue, processedDir, transcriptsDir, whisperModelPath, videoProcessingStatus, &wg)
 	}
 
@@ -89,7 +89,6 @@ func main() {
 			transcribeQueue <- id
 		default:
 			slog.Error(fmt.Sprintf("Unexpected video status: %s", status))
-
 		}
 	}
 

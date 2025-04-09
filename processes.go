@@ -192,28 +192,26 @@ func saveProgress(projectPath string, videoProcessingStatus VideoProcessingStatu
 	}
 }
 
-func downloadWorker(downloadQueue <-chan string, processQueue chan<- string, outputPath string, progress VideoProcessingStatus, wg *sync.WaitGroup) {
+func downloadWorker(downloadQueue <-chan string, processQueue chan<- string, outputPath string, progress VideoProcessingStatus) {
 	for job := range downloadQueue {
 		downloadVideo(job, progress, outputPath)
 		processQueue <- job
-		wg.Done()
 	}
-	slog.Info("download worker done")
 }
 
-func processWorker(processQueue <-chan string, transcribeQueue chan<- string, inputPath string, outputPath string, progress VideoProcessingStatus, wg *sync.WaitGroup) {
+func processWorker(processQueue <-chan string, transcribeQueue chan<- string, inputPath string, outputPath string, progress VideoProcessingStatus) {
 	for job := range processQueue {
 		processVideo(job, inputPath, outputPath, progress)
 		transcribeQueue <- job
-		wg.Done()
 	}
-	slog.Info("process worker done")
 }
 
 func transcribeWorker(transcribeQueue <-chan string, inputPath string, outputPath string, modelPath string, progress VideoProcessingStatus, wg *sync.WaitGroup) {
 	for job := range transcribeQueue {
 		transcribeVideo(job, inputPath, outputPath, modelPath, progress)
+		// only call wg.Done() on the last step
+		// because all of the jobs that have completed the last step
+		// will be the sum of all the jobs input to all the pipelines
 		wg.Done()
 	}
-	slog.Info("transcribe worker done")
 }
