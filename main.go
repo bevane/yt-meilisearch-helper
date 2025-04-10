@@ -35,8 +35,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	videoProcessingStatus := VideoProcessingStatus{}
-	err = json.Unmarshal(progressData, &videoProcessingStatus)
+	videoProgress := VideoProcessingStatus{}
+	err = json.Unmarshal(progressData, &videoProgress)
 	if err != nil {
 		slog.Error(fmt.Sprintf("Unable to unmarshall progress.json: %v", err.Error()))
 		os.Exit(1)
@@ -47,12 +47,12 @@ func main() {
 	go func() {
 		<-c
 		cleanup(dataPath)
-		saveProgress(dataPath, videoProcessingStatus)
+		saveProgress(dataPath, videoProgress)
 
 		os.Exit(130)
 	}()
 
-	err = gatherVideos(channelUrl, videoProcessingStatus)
+	err = gatherVideos(channelUrl, videoProgress)
 	if err != nil {
 		slog.Warn(fmt.Sprintf("Unable to gather videos: %v", err.Error()))
 	}
@@ -68,15 +68,15 @@ func main() {
 	var wg sync.WaitGroup
 
 	for range 5 {
-		go downloadWorker(downloadQueue, processQueue, downloadDir, videoProcessingStatus)
-		go processWorker(processQueue, transcribeQueue, downloadDir, processedDir, videoProcessingStatus)
+		go downloadWorker(downloadQueue, processQueue, downloadDir, videoProgress)
+		go processWorker(processQueue, transcribeQueue, downloadDir, processedDir, videoProgress)
 	}
 
 	for range 2 {
-		go transcribeWorker(transcribeQueue, processedDir, transcriptsDir, whisperModelPath, videoProcessingStatus, &wg)
+		go transcribeWorker(transcribeQueue, processedDir, transcriptsDir, whisperModelPath, videoProgress, &wg)
 	}
 
-	for id, status := range videoProcessingStatus {
+	for id, status := range videoProgress {
 		switch status {
 		case "pending":
 			slog.Info("Adding to download queue")
@@ -98,5 +98,5 @@ func main() {
 	wg.Wait()
 
 	cleanup(dataPath)
-	saveProgress(dataPath, videoProcessingStatus)
+	saveProgress(dataPath, videoProgress)
 }
