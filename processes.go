@@ -100,7 +100,7 @@ func downloadVideo(videoId string, videosDataAndStatus VideosDataAndStatus, oupu
 	slog.Info(fmt.Sprintf("Downloading video %s", videoId))
 	videoUrl := "https://www.youtube.com/watch?v=" + videoId
 	// downloads audio only and saves it to the output path with name as videoId.m4a
-	cmdFetch := exec.Command("yt-dlp", "-x", "-P", ouputPath, "-o", "%(id)s.%(ext)s", videoUrl)
+	cmdFetch := exec.Command("yt-dlp", "-x", "--audio-format", "mp3", "-P", ouputPath, "-o", "%(id)s.%(ext)s", videoUrl)
 	out, err := cmdFetch.CombinedOutput()
 	if err != nil {
 		slog.Error(fmt.Sprintf("Unable to download video %s: %s", videoId, err.Error()+string(out)))
@@ -115,7 +115,7 @@ func downloadVideo(videoId string, videosDataAndStatus VideosDataAndStatus, oupu
 
 func processVideo(videoId string, inputPath string, outputPath string, videosDataAndStatus VideosDataAndStatus) {
 	slog.Info(fmt.Sprintf("Processing video %s", videoId))
-	inputFilePath := filepath.Join(inputPath, fmt.Sprintf("%s.m4a", videoId))
+	inputFilePath := filepath.Join(inputPath, fmt.Sprintf("%s.mp3", videoId))
 	outputFilePath := filepath.Join(outputPath, fmt.Sprintf("%s.wav", videoId))
 
 	cmdFetch := exec.Command("ffmpeg", "-i", inputFilePath, "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", outputFilePath)
