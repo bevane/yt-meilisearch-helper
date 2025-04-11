@@ -17,6 +17,7 @@ import (
 
 type Document struct {
 	Id         string `json:"id"`
+	Title      string `json:"title"`
 	Transcript string `json:"transcript"`
 }
 
