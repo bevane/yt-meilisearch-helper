@@ -87,7 +87,7 @@ func gatherVideos(url string, videosDataAndStatus VideosDataAndStatus) error {
 	out, err := cmdFetch.CombinedOutput()
 	outString := string(out)
 	if err != nil {
-		return errors.New(outString)
+		return errors.New(err.Error() + outString)
 	}
 	addNewVideosToProcessing(outString, videosDataAndStatus)
 	return nil
@@ -114,12 +114,12 @@ func addNewVideosToProcessing(videosList string, videosDataAndStatus VideosDataA
 
 func downloadVideo(videoId string, videosDataAndStatus VideosDataAndStatus, ouputPath string) {
 	slog.Info(fmt.Sprintf("Downloading video %s", videoId))
-	videoUrl := "youtube.com/watch?v=" + videoId
+	videoUrl := "https://www.youtube.com/watch?v=" + videoId
 	// downloads audio only and saves it to the output path with name as videoId.m4a
 	cmdFetch := exec.Command("yt-dlp", "-x", "-P", ouputPath, "-o", "%(id)s.%(ext)s", videoUrl)
 	out, err := cmdFetch.CombinedOutput()
 	if err != nil {
-		slog.Error(fmt.Sprintf("Unable to download video %s: %s", videoId, string(out)))
+		slog.Error(fmt.Sprintf("Unable to download video %s: %s", videoId, err.Error()+string(out)))
 	} else {
 		slog.Info(fmt.Sprintf("Downloaded video %s", videoId))
 		videoEntry, _ := videosDataAndStatus[videoId]
@@ -137,7 +137,7 @@ func processVideo(videoId string, inputPath string, outputPath string, videosDat
 	cmdFetch := exec.Command("ffmpeg", "-i", inputFilePath, "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", outputFilePath)
 	out, err := cmdFetch.CombinedOutput()
 	if err != nil {
-		slog.Error(fmt.Sprintf("Unable to process video %s: %s", videoId, string(out)))
+		slog.Error(fmt.Sprintf("Unable to process video %s: %s", videoId, err.Error()+string(out)))
 	} else {
 		slog.Info(fmt.Sprintf("Processed video %s", videoId))
 		videoEntry, _ := videosDataAndStatus[videoId]
@@ -155,7 +155,7 @@ func transcribeVideo(videoId string, inputPath string, outputPath string, modelP
 	cmdFetch := exec.Command("whisper-cli", "-osrt", "-m", modelPath, "-f", inputFilePath, "-of", outputFilePath)
 	out, err := cmdFetch.CombinedOutput()
 	if err != nil {
-		slog.Error(fmt.Sprintf("Unable to transcribe video %s: %s", videoId, string(out)))
+		slog.Error(fmt.Sprintf("Unable to transcribe video %s: %s", videoId, err.Error()+string(out)))
 	} else {
 		slog.Info(fmt.Sprintf("Transcribed video %s", videoId))
 		videoEntry, _ := videosDataAndStatus[videoId]
