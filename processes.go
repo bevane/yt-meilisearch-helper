@@ -16,8 +16,7 @@ import (
 )
 
 func initDataDir(dataPath string) error {
-	progressPath := filepath.Join(dataPath, "videos.json")
-	indexPath := filepath.Join(dataPath, "videos.json")
+	videoDataPath := filepath.Join(dataPath, "videos.json")
 	downloadsPath := filepath.Join(dataPath, "downloads")
 	processedPath := filepath.Join(dataPath, "processed")
 	transcriptsPath := filepath.Join(dataPath, "transcripts")
@@ -27,30 +26,15 @@ func initDataDir(dataPath string) error {
 	// the file or directory already exists
 	// os.Create does not throw error if the file already exists and instead
 	// will truncate the file so check if file exists explicitly with os.Stat
-	_, err := os.Stat(progressPath)
+	_, err := os.Stat(videoDataPath)
 	if err != nil && os.IsNotExist(err) {
 		slog.Info("videos.json not found, creating videos.json")
-		progressFile, err := os.Create(progressPath)
+		progressFile, err := os.Create(videoDataPath)
 		if err != nil {
 			return err
 		}
 		defer progressFile.Close()
 		_, err = progressFile.Write([]byte("{}"))
-		if err != nil {
-			return err
-		}
-	} else if err != nil {
-		return err
-	}
-	_, err = os.Stat(indexPath)
-	if err != nil && os.IsNotExist(err) {
-		slog.Info("videos.json not found, creating videos.json")
-		indexFile, err := os.Create(indexPath)
-		if err != nil {
-			return err
-		}
-		defer indexFile.Close()
-		_, err = indexFile.Write([]byte("{}"))
 		if err != nil {
 			return err
 		}
