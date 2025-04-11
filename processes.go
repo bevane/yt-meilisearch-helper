@@ -67,7 +67,7 @@ func initDataDir(dataPath string) error {
 
 func gatherVideos(url string, videosDataAndStatus VideosDataAndStatus) error {
 	slog.Info("Checking channel for new videos")
-	cmdFetch := exec.Command("yt-dlp", "--flat-playlist", "--print", "id", url)
+	cmdFetch := exec.Command("yt-dlp", "--flat-playlist", "--print", "%(id)s %(title)s", url)
 	out, err := cmdFetch.CombinedOutput()
 	outString := string(out)
 	if err != nil {
@@ -79,19 +79,25 @@ func gatherVideos(url string, videosDataAndStatus VideosDataAndStatus) error {
 
 func addNewVideosToProcessing(videosList string, videosDataAndStatus VideosDataAndStatus) {
 	var count int
-	for videoId := range strings.SplitSeq(videosList, "\n") {
+	for videoIdAndTitle := range strings.SplitSeq(videosList, "\n") {
+		if videoIdAndTitle == "" {
+			continue
+		}
+		videoIdAndTitleSlice := strings.SplitN(videoIdAndTitle, " ", 2)
+		videoId, title := videoIdAndTitleSlice[0], videoIdAndTitleSlice[1]
+
+		// if video details have already been recorded, skip
 		videoEntry, ok := videosDataAndStatus[videoId]
 		if ok {
 			continue
 		}
-		if videoId == "" {
-			continue
-		}
-		count++
 
 		videoEntry.Status = "pending"
+		videoEntry.Title = title
 		videoEntry.Id = videoId
 		videosDataAndStatus[videoId] = videoEntry
+
+		count++
 	}
 	slog.Info(fmt.Sprintf("%v new videos have been added to the queue and are pending download", count))
 }
