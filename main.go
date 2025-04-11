@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/joho/godotenv"
+	"github.com/meilisearch/meilisearch-go"
 )
 
 type VideoProcessingStatus map[string]string
@@ -20,6 +21,8 @@ func main() {
 	dataPath := os.Getenv("DATA_PATH")
 	channelUrl := os.Getenv("CHANNEL_URL")
 	whisperModelPath := os.Getenv("WHISPER_MODEL_PATH")
+
+	_ = meilisearch.New(os.Getenv("MEILISEARCH_URL"), meilisearch.WithAPIKey(os.Getenv("MEILISEARCH_API_KEY")))
 
 	slog.Info(fmt.Sprintf("Setting project directory to %s", dataPath))
 	slog.Info(fmt.Sprintf("Downloading and Processing videos for %s", channelUrl))

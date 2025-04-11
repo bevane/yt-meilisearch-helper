@@ -11,7 +11,14 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/meilisearch/meilisearch-go"
 )
+
+type Document struct {
+	Id         string `json:"id"`
+	Transcript string `json:"transcript"`
+}
 
 func initDataDir(dataPath string) error {
 	progressPath := filepath.Join(dataPath, "progress.json")
@@ -151,6 +158,10 @@ func transcribeVideo(videoId string, inputPath string, outputPath string, modelP
 		videoProcessingStatus[videoId] = "transcribed"
 	}
 
+}
+
+func uploadDocumentsToMeilisearch(documents []Document, searchClient meilisearch.ServiceManager) {
+	searchClient.Index("videos").UpdateDocuments(documents)
 }
 
 func cleanup(root string) {
