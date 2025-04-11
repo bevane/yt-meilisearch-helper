@@ -13,7 +13,16 @@ import (
 	"github.com/meilisearch/meilisearch-go"
 )
 
-type VideoProcessingStatus map[string]string
+type VideosDataAndStatus map[string]struct {
+	Status string `json:"status"`
+	Document
+}
+
+type Document struct {
+	Id         string `json:"id"`
+	Title      string `json:"title"`
+	Transcript string `json:"transcript"`
+}
 
 func main() {
 
@@ -32,16 +41,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	progressData, err := os.ReadFile(filepath.Join(dataPath, "progress.json"))
+	videosJsonData, err := os.ReadFile(filepath.Join(dataPath, "videos.json"))
 	if err != nil {
-		slog.Error(fmt.Sprintf("Unable to read progress.json: %v", err.Error()))
+		slog.Error(fmt.Sprintf("Unable to read videos.json: %v", err.Error()))
 		os.Exit(1)
 	}
 
-	videoProgress := VideoProcessingStatus{}
-	err = json.Unmarshal(progressData, &videoProgress)
+	videosDataAndStatus := VideosDataAndStatus{}
+	err = json.Unmarshal(videosJsonData, &videosDataAndStatus)
 	if err != nil {
-		slog.Error(fmt.Sprintf("Unable to unmarshall progress.json: %v", err.Error()))
+		slog.Error(fmt.Sprintf("Unable to unmarshall videos.json: %v", err.Error()))
 		os.Exit(1)
 	}
 
@@ -50,12 +59,12 @@ func main() {
 	go func() {
 		<-c
 		cleanup(dataPath)
-		saveProgress(dataPath, videoProgress)
+		saveProgress(dataPath, videosDataAndStatus)
 
 		os.Exit(130)
 	}()
 
-	err = gatherVideos(channelUrl, videoProgress)
+	err = gatherVideos(channelUrl, videosDataAndStatus)
 	if err != nil {
 		slog.Warn(fmt.Sprintf("Unable to gather videos: %v", err.Error()))
 	}
@@ -71,16 +80,16 @@ func main() {
 	var wg sync.WaitGroup
 
 	for range 5 {
-		go downloadWorker(downloadQueue, processQueue, downloadDir, videoProgress)
-		go processWorker(processQueue, transcribeQueue, downloadDir, processedDir, videoProgress)
+		go downloadWorker(downloadQueue, processQueue, downloadDir, videosDataAndStatus)
+		go processWorker(processQueue, transcribeQueue, downloadDir, processedDir, videosDataAndStatus)
 	}
 
 	for range 2 {
-		go transcribeWorker(transcribeQueue, processedDir, transcriptsDir, whisperModelPath, videoProgress, &wg)
+		go transcribeWorker(transcribeQueue, processedDir, transcriptsDir, whisperModelPath, videosDataAndStatus, &wg)
 	}
 
-	for id, status := range videoProgress {
-		switch status {
+	for id, video := range videosDataAndStatus {
+		switch video.Status {
 		case "pending":
 			slog.Info("Adding to download queue")
 			wg.Add(1)
@@ -94,12 +103,12 @@ func main() {
 			wg.Add(1)
 			transcribeQueue <- id
 		default:
-			slog.Error(fmt.Sprintf("Unexpected video status: %s", status))
+			slog.Error(fmt.Sprintf("Unexpected video status: %s", video.Status))
 		}
 	}
 
 	wg.Wait()
 
 	cleanup(dataPath)
-	saveProgress(dataPath, videoProgress)
+	saveProgress(dataPath, videosDataAndStatus)
 }

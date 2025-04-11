@@ -15,14 +15,8 @@ import (
 	"github.com/meilisearch/meilisearch-go"
 )
 
-type Document struct {
-	Id         string `json:"id"`
-	Title      string `json:"title"`
-	Transcript string `json:"transcript"`
-}
-
 func initDataDir(dataPath string) error {
-	progressPath := filepath.Join(dataPath, "progress.json")
+	progressPath := filepath.Join(dataPath, "videos.json")
 	indexPath := filepath.Join(dataPath, "videos.json")
 	downloadsPath := filepath.Join(dataPath, "downloads")
 	processedPath := filepath.Join(dataPath, "processed")
@@ -35,7 +29,7 @@ func initDataDir(dataPath string) error {
 	// will truncate the file so check if file exists explicitly with os.Stat
 	_, err := os.Stat(progressPath)
 	if err != nil && os.IsNotExist(err) {
-		slog.Info("progress.json not found, creating progress.json")
+		slog.Info("videos.json not found, creating videos.json")
 		progressFile, err := os.Create(progressPath)
 		if err != nil {
 			return err
@@ -87,7 +81,7 @@ func initDataDir(dataPath string) error {
 	return nil
 }
 
-func gatherVideos(url string, videoProcessingStatus VideoProcessingStatus) error {
+func gatherVideos(url string, videosDataAndStatus VideosDataAndStatus) error {
 	slog.Info("Checking channel for new videos")
 	cmdFetch := exec.Command("yt-dlp", "--flat-playlist", "--print", "id", url)
 	out, err := cmdFetch.CombinedOutput()
@@ -95,26 +89,30 @@ func gatherVideos(url string, videoProcessingStatus VideoProcessingStatus) error
 	if err != nil {
 		return errors.New(outString)
 	}
-	addNewVideosToProcessing(outString, videoProcessingStatus)
+	addNewVideosToProcessing(outString, videosDataAndStatus)
 	return nil
 }
 
-func addNewVideosToProcessing(videosList string, videoProcessingStatus VideoProcessingStatus) {
+func addNewVideosToProcessing(videosList string, videosDataAndStatus VideosDataAndStatus) {
 	var count int
 	for videoId := range strings.SplitSeq(videosList, "\n") {
-		if _, ok := videoProcessingStatus[videoId]; ok {
+		videoEntry, ok := videosDataAndStatus[videoId]
+		if ok {
 			continue
 		}
 		if videoId == "" {
 			continue
 		}
 		count++
-		videoProcessingStatus[videoId] = "pending"
+
+		videoEntry.Status = "pending"
+		videoEntry.Id = videoId
+		videosDataAndStatus[videoId] = videoEntry
 	}
 	slog.Info(fmt.Sprintf("%v new videos have been added to the queue and are pending download", count))
 }
 
-func downloadVideo(videoId string, videoProcessingStatus VideoProcessingStatus, ouputPath string) {
+func downloadVideo(videoId string, videosDataAndStatus VideosDataAndStatus, ouputPath string) {
 	slog.Info(fmt.Sprintf("Downloading video %s", videoId))
 	videoUrl := "youtube.com/watch?v=" + videoId
 	// downloads audio only and saves it to the output path with name as videoId.m4a
@@ -124,12 +122,14 @@ func downloadVideo(videoId string, videoProcessingStatus VideoProcessingStatus, 
 		slog.Error(fmt.Sprintf("Unable to download video %s: %s", videoId, string(out)))
 	} else {
 		slog.Info(fmt.Sprintf("Downloaded video %s", videoId))
-		videoProcessingStatus[videoId] = "downloaded"
+		videoEntry, _ := videosDataAndStatus[videoId]
+		videoEntry.Status = "downloaded"
+		videosDataAndStatus[videoId] = videoEntry
 	}
 
 }
 
-func processVideo(videoId string, inputPath string, outputPath string, videoProcessingStatus VideoProcessingStatus) {
+func processVideo(videoId string, inputPath string, outputPath string, videosDataAndStatus VideosDataAndStatus) {
 	slog.Info(fmt.Sprintf("Processing video %s", videoId))
 	inputFilePath := filepath.Join(inputPath, fmt.Sprintf("%s.m4a", videoId))
 	outputFilePath := filepath.Join(outputPath, fmt.Sprintf("%s.wav", videoId))
@@ -140,12 +140,14 @@ func processVideo(videoId string, inputPath string, outputPath string, videoProc
 		slog.Error(fmt.Sprintf("Unable to process video %s: %s", videoId, string(out)))
 	} else {
 		slog.Info(fmt.Sprintf("Processed video %s", videoId))
-		videoProcessingStatus[videoId] = "processed"
+		videoEntry, _ := videosDataAndStatus[videoId]
+		videoEntry.Status = "processed"
+		videosDataAndStatus[videoId] = videoEntry
 	}
 
 }
 
-func transcribeVideo(videoId string, inputPath string, outputPath string, modelPath string, videoProcessingStatus VideoProcessingStatus) {
+func transcribeVideo(videoId string, inputPath string, outputPath string, modelPath string, videosDataAndStatus VideosDataAndStatus) {
 	slog.Info(fmt.Sprintf("Transcribing video %s", videoId))
 	inputFilePath := filepath.Join(inputPath, fmt.Sprintf("%s.wav", videoId))
 	outputFilePath := filepath.Join(outputPath, videoId)
@@ -156,7 +158,9 @@ func transcribeVideo(videoId string, inputPath string, outputPath string, modelP
 		slog.Error(fmt.Sprintf("Unable to transcribe video %s: %s", videoId, string(out)))
 	} else {
 		slog.Info(fmt.Sprintf("Transcribed video %s", videoId))
-		videoProcessingStatus[videoId] = "transcribed"
+		videoEntry, _ := videosDataAndStatus[videoId]
+		videoEntry.Status = "transcribed"
+		videosDataAndStatus[videoId] = videoEntry
 	}
 
 }
@@ -190,35 +194,35 @@ func cleanup(root string) {
 	})
 }
 
-func saveProgress(projectPath string, videoProcessingStatus VideoProcessingStatus) {
-	updatedProgressData, err := json.MarshalIndent(videoProcessingStatus, "", "\t")
+func saveProgress(projectPath string, videosDataAndStatus VideosDataAndStatus) {
+	updatedProgressData, err := json.MarshalIndent(videosDataAndStatus, "", "\t")
 	if err != nil {
-		slog.Error(fmt.Sprintf("Unable to marshall progress.json data: %v", err.Error()))
+		slog.Error(fmt.Sprintf("Unable to marshall videos.json data: %v", err.Error()))
 		os.Exit(1)
 	}
 
-	err = os.WriteFile(filepath.Join(projectPath, "progress.json"), updatedProgressData, 0666)
+	err = os.WriteFile(filepath.Join(projectPath, "videos.json"), updatedProgressData, 0666)
 	if err != nil {
-		slog.Error(fmt.Sprintf("Unable to write to progress.json: %v", err.Error()))
+		slog.Error(fmt.Sprintf("Unable to write to videos.json: %v", err.Error()))
 		os.Exit(1)
 	}
 }
 
-func downloadWorker(downloadQueue <-chan string, processQueue chan<- string, outputPath string, progress VideoProcessingStatus) {
+func downloadWorker(downloadQueue <-chan string, processQueue chan<- string, outputPath string, progress VideosDataAndStatus) {
 	for job := range downloadQueue {
 		downloadVideo(job, progress, outputPath)
 		processQueue <- job
 	}
 }
 
-func processWorker(processQueue <-chan string, transcribeQueue chan<- string, inputPath string, outputPath string, progress VideoProcessingStatus) {
+func processWorker(processQueue <-chan string, transcribeQueue chan<- string, inputPath string, outputPath string, progress VideosDataAndStatus) {
 	for job := range processQueue {
 		processVideo(job, inputPath, outputPath, progress)
 		transcribeQueue <- job
 	}
 }
 
-func transcribeWorker(transcribeQueue <-chan string, inputPath string, outputPath string, modelPath string, progress VideoProcessingStatus, wg *sync.WaitGroup) {
+func transcribeWorker(transcribeQueue <-chan string, inputPath string, outputPath string, modelPath string, progress VideosDataAndStatus, wg *sync.WaitGroup) {
 	for job := range transcribeQueue {
 		transcribeVideo(job, inputPath, outputPath, modelPath, progress)
 		// only call wg.Done() on the last step
