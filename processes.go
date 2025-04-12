@@ -166,6 +166,7 @@ func uploadDocumentsToMeilisearch(documents []Document, searchClient meilisearch
 		for _, document := range documents {
 			videoEntry, _ := videosDataAndStatus[document.Id]
 			videoEntry.Status = "indexed"
+			videosDataAndStatus[document.Id] = videoEntry
 
 		}
 	}
