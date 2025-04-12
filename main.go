@@ -90,7 +90,7 @@ func main() {
 	}
 
 	for range 2 {
-		go transcribeWorker(transcribeQueue, processedDir, transcriptsDir, whisperModelPath, videosDataAndStatus, &wg)
+		go transcribeWorker(transcribeQueue, indexQueue, processedDir, transcriptsDir, whisperModelPath, videosDataAndStatus, &wg)
 	}
 
 	go indexWorker(indexQueue, transcriptsDir, searchClient, videosDataAndStatus, &wg)

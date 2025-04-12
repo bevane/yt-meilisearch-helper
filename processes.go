@@ -225,13 +225,10 @@ func processWorker(processQueue <-chan string, transcribeQueue chan<- string, in
 	}
 }
 
-func transcribeWorker(transcribeQueue <-chan string, inputPath string, outputPath string, modelPath string, progress VideosDataAndStatus, wg *sync.WaitGroup) {
+func transcribeWorker(transcribeQueue <-chan string, indexQueue chan<- string, inputPath string, outputPath string, modelPath string, progress VideosDataAndStatus, wg *sync.WaitGroup) {
 	for job := range transcribeQueue {
 		transcribeVideo(job, inputPath, outputPath, modelPath, progress)
-		// only call wg.Done() on the last step
-		// because all of the jobs that have completed the last step
-		// will be the sum of all the jobs input to all the pipelines
-		wg.Done()
+		indexQueue <- job
 	}
 }
 
@@ -259,6 +256,9 @@ func indexWorker(indexQueue <-chan string, transcriptsPath string, searchClient 
 				continue
 			}
 			uploadDocumentsToMeilisearch(documents, searchClient, progress)
+			// only call wg.Done() on the last step
+			// because all of the jobs that have completed the last step
+			// will be the sum of all the jobs input to all the pipelines
 			for range len(documents) {
 				wg.Done()
 			}
