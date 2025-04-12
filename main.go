@@ -15,7 +15,8 @@ import (
 
 type VideosDataAndStatus map[string]struct {
 	Status string `json:"status"`
-	Document
+	Id     string `json:"id"`
+	Title  string `json:"title"`
 }
 
 type Document struct {
@@ -31,11 +32,14 @@ func main() {
 	channelUrl := os.Getenv("CHANNEL_URL")
 	whisperModelPath := os.Getenv("WHISPER_MODEL_PATH")
 
-	_ = meilisearch.New(os.Getenv("MEILISEARCH_URL"), meilisearch.WithAPIKey(os.Getenv("MEILISEARCH_API_KEY")))
+	searchClient, err := meilisearch.Connect(os.Getenv("MEILISEARCH_URL"), meilisearch.WithAPIKey(os.Getenv("MEILISEARCH_API_KEY")))
+	if err != nil {
+		slog.Error(fmt.Sprintf("Unable to connect to meilisearch: %s\n", err.Error()))
+	}
 
 	slog.Info(fmt.Sprintf("Setting project directory to %s", dataPath))
 	slog.Info(fmt.Sprintf("Downloading and Processing videos for %s", channelUrl))
-	err := initDataDir(dataPath)
+	err = initDataDir(dataPath)
 	if err != nil {
 		slog.Error(fmt.Sprintf("Unable to initialize project folder: %v", err.Error()))
 		os.Exit(1)
@@ -76,6 +80,7 @@ func main() {
 	downloadQueue := make(chan string)
 	processQueue := make(chan string)
 	transcribeQueue := make(chan string)
+	indexQueue := make(chan string)
 
 	var wg sync.WaitGroup
 
@@ -87,6 +92,8 @@ func main() {
 	for range 2 {
 		go transcribeWorker(transcribeQueue, processedDir, transcriptsDir, whisperModelPath, videosDataAndStatus, &wg)
 	}
+
+	go indexWorker(indexQueue, transcriptsDir, searchClient, videosDataAndStatus, &wg)
 
 	for id, video := range videosDataAndStatus {
 		switch video.Status {
@@ -102,6 +109,10 @@ func main() {
 			slog.Info("Adding to transcribe queue")
 			wg.Add(1)
 			transcribeQueue <- id
+		case "transcribed":
+			slog.Info("Adding to index queue")
+			wg.Add(1)
+			indexQueue <- id
 		default:
 			slog.Error(fmt.Sprintf("Unexpected video status: %s", video.Status))
 		}

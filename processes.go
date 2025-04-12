@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/meilisearch/meilisearch-go"
 )
@@ -155,8 +156,19 @@ func transcribeVideo(videoId string, inputPath string, outputPath string, modelP
 
 }
 
-func uploadDocumentsToMeilisearch(documents []Document, searchClient meilisearch.ServiceManager) {
-	searchClient.Index("videos").UpdateDocuments(documents)
+func uploadDocumentsToMeilisearch(documents []Document, searchClient meilisearch.ServiceManager, videosDataAndStatus VideosDataAndStatus) {
+	slog.Info(fmt.Sprintf("Uploading %v documents to search index", len(documents)))
+	_, err := searchClient.Index("videos").UpdateDocuments(documents)
+	if err != nil {
+		slog.Error(fmt.Sprintf("Unable to upload to index: %s", err.Error()))
+	} else {
+		slog.Info(fmt.Sprintf("Uploaded %v documents to search index", len(documents)))
+		for _, document := range documents {
+			videoEntry, _ := videosDataAndStatus[document.Id]
+			videoEntry.Status = "indexed"
+
+		}
+	}
 }
 
 func cleanup(root string) {
@@ -219,5 +231,34 @@ func transcribeWorker(transcribeQueue <-chan string, inputPath string, outputPat
 		// because all of the jobs that have completed the last step
 		// will be the sum of all the jobs input to all the pipelines
 		wg.Done()
+	}
+}
+
+func indexWorker(indexQueue <-chan string, transcriptsPath string, searchClient meilisearch.ServiceManager, progress VideosDataAndStatus, wg *sync.WaitGroup) {
+	limiter := time.Tick(5 * time.Second)
+	var documents []Document
+	for {
+		select {
+		case job := <-indexQueue:
+			videoEntry, _ := progress[job]
+			transcriptFilePath := filepath.Join(transcriptsPath, fmt.Sprintf("%s.srt", job))
+			transcriptBytes, err := os.ReadFile(transcriptFilePath)
+			if err != nil {
+				slog.Error(fmt.Sprintf("Unable to read srt file: %s", err.Error()))
+				continue
+			}
+			document := Document{
+				Id:         videoEntry.Id,
+				Title:      videoEntry.Title,
+				Transcript: string(transcriptBytes),
+			}
+			documents = append(documents, document)
+		case <-limiter:
+			uploadDocumentsToMeilisearch(documents, searchClient, progress)
+			for range len(documents) {
+				wg.Done()
+			}
+			documents = nil
+		}
 	}
 }
