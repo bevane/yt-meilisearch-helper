@@ -255,6 +255,9 @@ func indexWorker(indexQueue <-chan string, transcriptsPath string, searchClient 
 			}
 			documents = append(documents, document)
 		case <-limiter:
+			if len(documents) == 0 {
+				continue
+			}
 			uploadDocumentsToMeilisearch(documents, searchClient, progress)
 			for range len(documents) {
 				wg.Done()
