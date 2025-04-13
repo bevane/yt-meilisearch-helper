@@ -74,11 +74,11 @@ func gatherVideos(url string, videosDataAndStatus VideosDataAndStatus) error {
 	if err != nil {
 		return errors.New(err.Error() + outString)
 	}
-	addNewVideosToProcessing(outString, videosDataAndStatus)
+	addNewVideosToQueue(outString, videosDataAndStatus)
 	return nil
 }
 
-func addNewVideosToProcessing(videosList string, videosDataAndStatus VideosDataAndStatus) {
+func addNewVideosToQueue(videosList string, videosDataAndStatus VideosDataAndStatus) {
 	var count int
 	for videoIdAndTitle := range strings.SplitSeq(videosList, "\n") {
 		if videoIdAndTitle == "" {
