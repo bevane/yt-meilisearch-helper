@@ -71,7 +71,6 @@ func main() {
 	signal.Notify(c, os.Interrupt)
 	go func() {
 		<-c
-		cleanup(dataPath)
 		saveProgress(dataPath, videosDataAndStatus)
 
 		os.Exit(130)
@@ -135,6 +134,5 @@ func main() {
 
 	wg.Wait()
 
-	cleanup(dataPath)
 	saveProgress(dataPath, videosDataAndStatus)
 }

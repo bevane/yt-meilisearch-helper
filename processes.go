@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -209,31 +208,6 @@ func uploadDocumentsToMeilisearch(documents []Document, searchClient meilisearch
 
 		}
 	}
-}
-
-func cleanup(root string) {
-	slog.Info("Cleaning up and exiting")
-	fsys := os.DirFS(root)
-	fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			slog.Warn(fmt.Sprintf("Error accessing path %s: %v\n", path, err))
-			return nil // Continue walking despite the error
-		}
-
-		if !d.IsDir() {
-			filename := filepath.Base(path)
-			if strings.HasSuffix(filename, ".cleanup") || strings.HasSuffix(filename, ".cleanup2") {
-				fullPath := filepath.Join(root, path)
-				err := os.Remove(fullPath)
-				if err != nil {
-					slog.Warn(fmt.Sprintf("Error removing file %s: %v\n", path, err))
-					return nil // Continue walking despite the error
-				}
-				fmt.Printf("Cleanup: removed file: %s\n", fullPath)
-			}
-		}
-		return nil
-	})
 }
 
 func saveProgress(projectPath string, videosDataAndStatus VideosDataAndStatus) {
