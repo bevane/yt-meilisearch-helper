@@ -211,34 +211,34 @@ func saveProgress(projectPath string, videosDataAndStatus VideosDataAndStatus) {
 	}
 }
 
-func downloadWorker(downloadQueue <-chan string, processQueue chan<- string, outputPath string, progress VideosDataAndStatus) {
+func downloadWorker(downloadQueue <-chan string, processQueue chan<- string, outputPath string, videosDataAndStatus VideosDataAndStatus) {
 	for job := range downloadQueue {
-		downloadVideo(job, progress, outputPath)
+		downloadVideo(job, videosDataAndStatus, outputPath)
 		processQueue <- job
 	}
 }
 
-func processWorker(processQueue <-chan string, transcribeQueue chan<- string, inputPath string, outputPath string, progress VideosDataAndStatus) {
+func processWorker(processQueue <-chan string, transcribeQueue chan<- string, inputPath string, outputPath string, videosDataAndStatus VideosDataAndStatus) {
 	for job := range processQueue {
-		processVideo(job, inputPath, outputPath, progress)
+		processVideo(job, inputPath, outputPath, videosDataAndStatus)
 		transcribeQueue <- job
 	}
 }
 
-func transcribeWorker(transcribeQueue <-chan string, indexQueue chan<- string, inputPath string, outputPath string, modelPath string, progress VideosDataAndStatus, wg *sync.WaitGroup) {
+func transcribeWorker(transcribeQueue <-chan string, indexQueue chan<- string, inputPath string, outputPath string, modelPath string, videosDataAndStatus VideosDataAndStatus, wg *sync.WaitGroup) {
 	for job := range transcribeQueue {
-		transcribeVideo(job, inputPath, outputPath, modelPath, progress)
+		transcribeVideo(job, inputPath, outputPath, modelPath, videosDataAndStatus)
 		indexQueue <- job
 	}
 }
 
-func indexWorker(indexQueue <-chan string, transcriptsPath string, searchClient meilisearch.ServiceManager, progress VideosDataAndStatus, wg *sync.WaitGroup) {
+func indexWorker(indexQueue <-chan string, transcriptsPath string, searchClient meilisearch.ServiceManager, videosDataAndStatus VideosDataAndStatus, wg *sync.WaitGroup) {
 	limiter := time.Tick(5 * time.Second)
 	var documents []Document
 	for {
 		select {
 		case job := <-indexQueue:
-			videoEntry, _ := progress[job]
+			videoEntry, _ := videosDataAndStatus[job]
 			transcriptFilePath := filepath.Join(transcriptsPath, fmt.Sprintf("%s.srt", job))
 			transcriptBytes, err := os.ReadFile(transcriptFilePath)
 			if err != nil {
@@ -255,7 +255,7 @@ func indexWorker(indexQueue <-chan string, transcriptsPath string, searchClient 
 			if len(documents) == 0 {
 				continue
 			}
-			uploadDocumentsToMeilisearch(documents, searchClient, progress)
+			uploadDocumentsToMeilisearch(documents, searchClient, videosDataAndStatus)
 			// only call wg.Done() on the last step
 			// because all of the jobs that have completed the last step
 			// will be the sum of all the jobs input to all the pipelines
