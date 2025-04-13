@@ -66,7 +66,7 @@ func initDataDir(dataPath string) error {
 	return nil
 }
 
-func gatherVideos(url string, videosDataAndStatus VideosDataAndStatus) error {
+func gatherVideos(url string, isUpdate bool, videosDataAndStatus VideosDataAndStatus) error {
 	slog.Info("Checking channel for new videos")
 	cmdFetch := exec.Command("yt-dlp", "--flat-playlist", "--print", "%(id)s %(title)s", url)
 	out, err := cmdFetch.CombinedOutput()
@@ -74,7 +74,12 @@ func gatherVideos(url string, videosDataAndStatus VideosDataAndStatus) error {
 	if err != nil {
 		return errors.New(err.Error() + outString)
 	}
-	addNewVideosToQueue(outString, videosDataAndStatus)
+	if isUpdate {
+		slog.Info("Setting videos to be reindexed")
+		addAndUpdateVideosInQueue(outString, videosDataAndStatus)
+	} else {
+		addNewVideosToQueue(outString, videosDataAndStatus)
+	}
 	return nil
 }
 
@@ -94,6 +99,7 @@ func addNewVideosToQueue(videosList string, videosDataAndStatus VideosDataAndSta
 		}
 
 		videoEntry.Status = "pending"
+		videoEntry.ReIndex = false
 		videoEntry.Title = title
 		videoEntry.Id = videoId
 		videosDataAndStatus[videoId] = videoEntry
@@ -101,6 +107,38 @@ func addNewVideosToQueue(videosList string, videosDataAndStatus VideosDataAndSta
 		count++
 	}
 	slog.Info(fmt.Sprintf("%v new videos have been added to the queue and are pending download", count))
+}
+
+func addAndUpdateVideosInQueue(videosList string, videosDataAndStatus VideosDataAndStatus) {
+	var countNew int
+	var countUpdated int
+	for videoIdAndTitle := range strings.SplitSeq(videosList, "\n") {
+		if videoIdAndTitle == "" {
+			continue
+		}
+		videoIdAndTitleSlice := strings.SplitN(videoIdAndTitle, " ", 2)
+		videoId, title := videoIdAndTitleSlice[0], videoIdAndTitleSlice[1]
+
+		videoEntry, ok := videosDataAndStatus[videoId]
+		// if video details have already been recorded, update the details
+		// and set it to be re-indexed while preserving its original status
+		if ok {
+			videoEntry.ReIndex = true
+			videoEntry.Title = title
+			videoEntry.Id = videoId
+			videosDataAndStatus[videoId] = videoEntry
+			countUpdated++
+		} else {
+			videoEntry.Status = "pending"
+			videoEntry.ReIndex = false
+			videoEntry.Title = title
+			videoEntry.Id = videoId
+			videosDataAndStatus[videoId] = videoEntry
+			countNew++
+		}
+
+	}
+	slog.Info(fmt.Sprintf("%v new videos have been added to the queue and are pending download, %v video details have been updated", countNew, countUpdated))
 }
 
 func downloadVideo(videoId string, videosDataAndStatus VideosDataAndStatus, ouputPath string) {
@@ -166,6 +204,7 @@ func uploadDocumentsToMeilisearch(documents []Document, searchClient meilisearch
 		for _, document := range documents {
 			videoEntry, _ := videosDataAndStatus[document.Id]
 			videoEntry.Status = "indexed"
+			videoEntry.ReIndex = false
 			videosDataAndStatus[document.Id] = videoEntry
 
 		}
@@ -246,10 +285,10 @@ func indexWorker(indexQueue <-chan string, transcriptsPath string, searchClient 
 				continue
 			}
 			document := Document{
-				Id:         videoEntry.Id,
-				Title:      videoEntry.Title,
 				Transcript: string(transcriptBytes),
 			}
+			document.Id = videoEntry.Id
+			document.Title = videoEntry.Title
 			documents = append(documents, document)
 		case <-limiter:
 			if len(documents) == 0 {

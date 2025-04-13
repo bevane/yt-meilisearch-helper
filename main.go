@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log/slog"
 	"os"
@@ -13,19 +14,27 @@ import (
 	"github.com/meilisearch/meilisearch-go"
 )
 
+// when adding new fields, the gatherVideos and IndexWorker functions
+// have to be updated to assign values to the new fields
+type VideoDetails struct {
+	Id    string `json:"id"`
+	Title string `json:"title"`
+}
+
 type VideosDataAndStatus map[string]struct {
-	Status string `json:"status"`
-	Id     string `json:"id"`
-	Title  string `json:"title"`
+	Status  string `json:"status"`
+	ReIndex bool   `json:"reIndex"`
+	VideoDetails
 }
 
 type Document struct {
-	Id         string `json:"id"`
-	Title      string `json:"title"`
 	Transcript string `json:"transcript"`
+	VideoDetails
 }
 
 func main() {
+	isUpdate := flag.Bool("u", false, "update details of videos in queue and set them to be reindexed")
+	flag.Parse()
 
 	godotenv.Load(".env")
 	dataPath := os.Getenv("DATA_PATH")
@@ -68,7 +77,7 @@ func main() {
 		os.Exit(130)
 	}()
 
-	err = gatherVideos(channelUrl, videosDataAndStatus)
+	err = gatherVideos(channelUrl, *isUpdate, videosDataAndStatus)
 	if err != nil {
 		slog.Warn(fmt.Sprintf("Unable to gather videos: %v", err.Error()))
 	}
@@ -115,6 +124,12 @@ func main() {
 			indexQueue <- id
 		default:
 			slog.Error(fmt.Sprintf("Unexpected video status: %s", video.Status))
+		}
+
+		if video.ReIndex && video.Status == "indexed" {
+			slog.Info("Adding to index queue (reindex)")
+			wg.Add(1)
+			indexQueue <- id
 		}
 	}
 
