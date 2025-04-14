@@ -72,6 +72,7 @@ func main() {
 	go func() {
 		<-c
 		saveProgress(dataPath, videosDataAndStatus)
+		printSummary(videosDataAndStatus)
 
 		os.Exit(130)
 	}()
@@ -80,6 +81,8 @@ func main() {
 	if err != nil {
 		slog.Warn(fmt.Sprintf("Unable to gather videos: %v", err.Error()))
 	}
+
+	printSummary(videosDataAndStatus)
 
 	downloadDir := filepath.Join(dataPath, "downloads")
 	processedDir := filepath.Join(dataPath, "processed")
@@ -135,4 +138,5 @@ func main() {
 	wg.Wait()
 
 	saveProgress(dataPath, videosDataAndStatus)
+	printSummary(videosDataAndStatus)
 }

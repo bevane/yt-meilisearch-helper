@@ -285,3 +285,55 @@ func indexWorker(indexQueue <-chan string, transcriptsPath string, searchClient 
 		}
 	}
 }
+
+func printSummary(videosDataAndStatus VideosDataAndStatus) {
+	countTotal := len(videosDataAndStatus)
+	var countPending int
+	var countDownloaded int
+	var countProcessed int
+	var countTranscribed int
+	var countIndexed int
+	var countReindex int
+
+	for _, video := range videosDataAndStatus {
+		switch video.Status {
+		case "pending":
+			countPending++
+		case "downloaded":
+			countDownloaded++
+		case "processed":
+			countProcessed++
+		case "transcribed":
+			countTranscribed++
+		case "indexed":
+			countIndexed++
+		default:
+
+		}
+
+		if video.ReIndex && video.Status == "indexed" {
+			countReindex++
+		}
+	}
+
+	slog.Info(fmt.Sprintf(`========== Summary: ==========
+
+Enqueued a total of %v videos
+Indexed %v videos
+
+Pending Download: %v
+Pending Processing: %v
+Pending Transcribing: %v
+Pending Indexing: %v
+Pending Re-Indexing: %v
+
+
+`, countTotal,
+		countIndexed,
+		countPending,
+		countDownloaded,
+		countProcessed,
+		countTranscribed,
+		countReindex,
+	))
+}
