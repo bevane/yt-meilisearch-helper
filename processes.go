@@ -235,8 +235,12 @@ func processWorker(processQueue <-chan string, transcribeQueue chan<- string, in
 	for job := range processQueue {
 		processVideo(job, inputPath, outputPath, videosDataAndStatus)
 		// remove file in previous step to save disk space
-		downloadedFile := filepath.Join(inputPath, fmt.Sprintf("%s.mp3", job))
-		os.Remove(downloadedFile)
+		downloadedFileMp3 := filepath.Join(inputPath, fmt.Sprintf("%s.mp3", job))
+		downloadedFileM4a := filepath.Join(inputPath, fmt.Sprintf("%s.m4a", job))
+		downloadedFileWebm := filepath.Join(inputPath, fmt.Sprintf("%s.webm", job))
+		os.Remove(downloadedFileMp3)
+		os.Remove(downloadedFileM4a)
+		os.Remove(downloadedFileWebm)
 		transcribeQueue <- job
 	}
 }
