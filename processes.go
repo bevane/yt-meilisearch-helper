@@ -234,6 +234,9 @@ func downloadWorker(downloadQueue <-chan string, processQueue chan<- string, out
 func processWorker(processQueue <-chan string, transcribeQueue chan<- string, inputPath string, outputPath string, videosDataAndStatus VideosDataAndStatus) {
 	for job := range processQueue {
 		processVideo(job, inputPath, outputPath, videosDataAndStatus)
+		// remove file in previous step to save disk space
+		downloadedFile := filepath.Join(inputPath, fmt.Sprintf("%s.mp3", job))
+		os.Remove(downloadedFile)
 		transcribeQueue <- job
 	}
 }
@@ -241,6 +244,9 @@ func processWorker(processQueue <-chan string, transcribeQueue chan<- string, in
 func transcribeWorker(transcribeQueue <-chan string, indexQueue chan<- string, inputPath string, outputPath string, modelPath string, videosDataAndStatus VideosDataAndStatus, wg *sync.WaitGroup) {
 	for job := range transcribeQueue {
 		transcribeVideo(job, inputPath, outputPath, modelPath, videosDataAndStatus)
+		// remove file in previous step to save disk space
+		processedFile := filepath.Join(inputPath, fmt.Sprintf("%s.wav", job))
+		os.Remove(processedFile)
 		indexQueue <- job
 	}
 }
