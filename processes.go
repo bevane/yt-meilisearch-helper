@@ -179,18 +179,12 @@ func getVideoDetails(videoId string) VideoDetails {
 	cmdFetch := exec.Command("yt-dlp", "--print", "%(upload_date)s %(duration)s %(title)s", videoUrl)
 	out, err := cmdFetch.CombinedOutput()
 	outString := string(out)
+	outString = strings.TrimSuffix(outString, "\n")
 	if err != nil {
 		slog.Warn(fmt.Sprintf("Unable to get metadata for %s: %s %s", videoId, err.Error(), outString))
 		return VideoDetails{}
 	}
 	videoDetailsSlice := strings.SplitN(outString, " ", 3)
-	fmt.Println(VideoDetails{
-		Id:         videoId,
-		Title:      videoDetailsSlice[2],
-		UploadDate: videoDetailsSlice[0],
-		Duration:   videoDetailsSlice[1],
-	})
-
 	return VideoDetails{
 		Id:         videoId,
 		Title:      videoDetailsSlice[2],
