@@ -222,6 +222,15 @@ func processVideo(videoId string, inputPath string, outputPath string, safeVideo
 	inputFilePath := filepath.Join(inputPath, fmt.Sprintf("%s.mp3", videoId))
 	outputFilePath := filepath.Join(outputPath, fmt.Sprintf("%s.wav", videoId))
 
+	_, err := os.Stat(outputFilePath)
+	if err == nil {
+		slog.Warn(fmt.Sprintf("Processed video for %s already exists, skipping", videoId))
+		videoEntry, _ := safeVideoDataCollection.Read(videoId)
+		videoEntry.Status = "processed"
+		safeVideoDataCollection.Write(videoId, videoEntry)
+		return
+	}
+
 	cmdFetch := exec.Command("ffmpeg", "-i", inputFilePath, "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", outputFilePath)
 	out, err := cmdFetch.CombinedOutput()
 	if err != nil {
@@ -239,6 +248,15 @@ func transcribeVideo(videoId string, inputPath string, outputPath string, modelP
 	slog.Info(fmt.Sprintf("Transcribing video %s", videoId))
 	inputFilePath := filepath.Join(inputPath, fmt.Sprintf("%s.wav", videoId))
 	outputFilePath := filepath.Join(outputPath, videoId)
+
+	_, err := os.Stat(outputFilePath + ".srt")
+	if err == nil {
+		slog.Warn(fmt.Sprintf("Transcript for video %s already exists, skipping", videoId))
+		videoEntry, _ := safeVideoDataCollection.Read(videoId)
+		videoEntry.Status = "transcribed"
+		safeVideoDataCollection.Write(videoId, videoEntry)
+		return
+	}
 
 	cmdFetch := exec.Command("whisper-cli", "-osrt", "-m", modelPath, "-f", inputFilePath, "-of", outputFilePath)
 	out, err := cmdFetch.CombinedOutput()
