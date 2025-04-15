@@ -17,8 +17,10 @@ import (
 // when adding new fields, the gatherVideos and IndexWorker functions
 // have to be updated to assign values to the new fields
 type VideoDetails struct {
-	Id    string `json:"id"`
-	Title string `json:"title"`
+	Id         string `json:"id"`
+	Title      string `json:"title"`
+	UploadDate string `json:"uploadDate"`
+	Duration   string `json:"duration"`
 }
 
 type VideosDataAndStatus map[string]struct {

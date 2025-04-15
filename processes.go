@@ -67,7 +67,7 @@ func initDataDir(dataPath string) error {
 
 func gatherVideos(url string, isUpdate bool, videosDataAndStatus VideosDataAndStatus) error {
 	slog.Info("Checking channel for new videos")
-	cmdFetch := exec.Command("yt-dlp", "--flat-playlist", "--print", "%(id)s %(title)s", url)
+	cmdFetch := exec.Command("yt-dlp", "--flat-playlist", "--print", "%(id)s", url)
 	out, err := cmdFetch.CombinedOutput()
 	outString := string(out)
 	if err != nil {
@@ -83,13 +83,14 @@ func gatherVideos(url string, isUpdate bool, videosDataAndStatus VideosDataAndSt
 }
 
 func addNewVideosToQueue(videosList string, videosDataAndStatus VideosDataAndStatus) {
+	var wg sync.WaitGroup
+	// limit goroutines to 100 at any instant to avoid consuming too much cpu and ram
+	semaphore := make(chan struct{}, 100)
 	var count int
-	for videoIdAndTitle := range strings.SplitSeq(videosList, "\n") {
-		if videoIdAndTitle == "" {
+	for videoId := range strings.SplitSeq(videosList, "\n") {
+		if videoId == "" {
 			continue
 		}
-		videoIdAndTitleSlice := strings.SplitN(videoIdAndTitle, " ", 2)
-		videoId, title := videoIdAndTitleSlice[0], videoIdAndTitleSlice[1]
 
 		// if video details have already been recorded, skip
 		videoEntry, ok := videosDataAndStatus[videoId]
@@ -97,47 +98,106 @@ func addNewVideosToQueue(videosList string, videosDataAndStatus VideosDataAndSta
 			continue
 		}
 
-		videoEntry.Status = "pending"
-		videoEntry.ReIndex = false
-		videoEntry.Title = title
-		videoEntry.Id = videoId
-		videosDataAndStatus[videoId] = videoEntry
+		wg.Add(1)
+		go func() {
+			semaphore <- struct{}{}
+			defer wg.Done()
+			videoDetails := getVideoDetails(videoId)
+			<-semaphore
+			videoEntry.Status = "pending"
+			videoEntry.ReIndex = false
+			videoEntry.Title = videoDetails.Title
+			videoEntry.Id = videoDetails.Id
+			videoEntry.UploadDate = videoDetails.UploadDate
+			videoEntry.Duration = videoDetails.Duration
+			videosDataAndStatus[videoId] = videoEntry
+		}()
 
 		count++
 	}
+	wg.Wait()
 	slog.Info(fmt.Sprintf("%v new videos have been added to the queue and are pending download", count))
 }
 
 func addAndUpdateVideosInQueue(videosList string, videosDataAndStatus VideosDataAndStatus) {
+	var wg sync.WaitGroup
+	// limit goroutines to 100 at any instant to avoid consuming too much cpu and ram
+	semaphore := make(chan struct{}, 100)
 	var countNew int
 	var countUpdated int
-	for videoIdAndTitle := range strings.SplitSeq(videosList, "\n") {
-		if videoIdAndTitle == "" {
+	for videoId := range strings.SplitSeq(videosList, "\n") {
+		if videoId == "" {
 			continue
 		}
-		videoIdAndTitleSlice := strings.SplitN(videoIdAndTitle, " ", 2)
-		videoId, title := videoIdAndTitleSlice[0], videoIdAndTitleSlice[1]
 
+		// if video details have already been recorded, skip
 		videoEntry, ok := videosDataAndStatus[videoId]
+
 		// if video details have already been recorded, update the details
 		// and set it to be re-indexed while preserving its original status
+		wg.Add(1)
 		if ok {
-			videoEntry.ReIndex = true
-			videoEntry.Title = title
-			videoEntry.Id = videoId
-			videosDataAndStatus[videoId] = videoEntry
+			go func() {
+				semaphore <- struct{}{}
+				defer wg.Done()
+				videoDetails := getVideoDetails(videoId)
+				<-semaphore
+				videoEntry.ReIndex = true
+				videoEntry.Title = videoDetails.Title
+				videoEntry.Id = videoDetails.Id
+				videoEntry.UploadDate = videoDetails.UploadDate
+				videoEntry.Duration = videoDetails.Duration
+				videosDataAndStatus[videoId] = videoEntry
+			}()
 			countUpdated++
 		} else {
-			videoEntry.Status = "pending"
-			videoEntry.ReIndex = false
-			videoEntry.Title = title
-			videoEntry.Id = videoId
-			videosDataAndStatus[videoId] = videoEntry
+			go func() {
+				semaphore <- struct{}{}
+				defer wg.Done()
+				videoDetails := getVideoDetails(videoId)
+				<-semaphore
+				videoEntry.Status = "pending"
+				videoEntry.ReIndex = false
+				videoEntry.Title = videoDetails.Title
+				videoEntry.Id = videoDetails.Id
+				videoEntry.UploadDate = videoDetails.UploadDate
+				videoEntry.Duration = videoDetails.Duration
+				videosDataAndStatus[videoId] = videoEntry
+			}()
 			countNew++
 		}
 
 	}
+	wg.Wait()
 	slog.Info(fmt.Sprintf("%v new videos have been added to the queue and are pending download, %v video details have been updated", countNew, countUpdated))
+}
+
+func getVideoDetails(videoId string) VideoDetails {
+	videoUrl := "https://www.youtube.com/watch?v=" + videoId
+	// title has to be last because title has spaces within it and we use space to separate
+	// this string later
+	cmdFetch := exec.Command("yt-dlp", "--print", "%(upload_date)s %(duration)s %(title)s", videoUrl)
+	out, err := cmdFetch.CombinedOutput()
+	outString := string(out)
+	if err != nil {
+		slog.Warn(fmt.Sprintf("Unable to get metadata for %s: %s %s", videoId, err.Error(), outString))
+		return VideoDetails{}
+	}
+	videoDetailsSlice := strings.SplitN(outString, " ", 3)
+	fmt.Println(VideoDetails{
+		Id:         videoId,
+		Title:      videoDetailsSlice[2],
+		UploadDate: videoDetailsSlice[0],
+		Duration:   videoDetailsSlice[1],
+	})
+
+	return VideoDetails{
+		Id:         videoId,
+		Title:      videoDetailsSlice[2],
+		UploadDate: videoDetailsSlice[0],
+		Duration:   videoDetailsSlice[1],
+	}
+
 }
 
 func downloadVideo(videoId string, videosDataAndStatus VideosDataAndStatus, ouputPath string) {
@@ -273,6 +333,8 @@ func indexWorker(indexQueue <-chan string, transcriptsPath string, searchClient 
 			}
 			document.Id = videoEntry.Id
 			document.Title = videoEntry.Title
+			document.UploadDate = videoEntry.UploadDate
+			document.Duration = videoEntry.Duration
 			documents = append(documents, document)
 		case <-limiter:
 			if len(documents) == 0 {
