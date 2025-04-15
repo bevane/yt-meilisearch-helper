@@ -65,7 +65,7 @@ func initDataDir(dataPath string) error {
 	return nil
 }
 
-func gatherVideos(url string, isUpdate bool, videosDataAndStatus VideosDataAndStatus) error {
+func gatherVideos(url string, isUpdate bool, safeVideoDataCollection *SafeVideoDataCollection) error {
 	slog.Info("Checking channel for new videos")
 	cmdFetch := exec.Command("yt-dlp", "--flat-playlist", "--print", "%(id)s", url)
 	out, err := cmdFetch.CombinedOutput()
@@ -75,14 +75,14 @@ func gatherVideos(url string, isUpdate bool, videosDataAndStatus VideosDataAndSt
 	}
 	if isUpdate {
 		slog.Info("Setting videos to be reindexed")
-		addAndUpdateVideosInQueue(outString, videosDataAndStatus)
+		addAndUpdateVideosInQueue(outString, safeVideoDataCollection)
 	} else {
-		addNewVideosToQueue(outString, videosDataAndStatus)
+		addNewVideosToQueue(outString, safeVideoDataCollection)
 	}
 	return nil
 }
 
-func addNewVideosToQueue(videosList string, videosDataAndStatus VideosDataAndStatus) {
+func addNewVideosToQueue(videosList string, safeVideoDataCollection *SafeVideoDataCollection) {
 	var wg sync.WaitGroup
 	// limit goroutines to 100 at any instant to avoid consuming too much cpu and ram
 	semaphore := make(chan struct{}, 100)
@@ -93,7 +93,7 @@ func addNewVideosToQueue(videosList string, videosDataAndStatus VideosDataAndSta
 		}
 
 		// if video details have already been recorded, skip
-		videoEntry, ok := videosDataAndStatus[videoId]
+		videoEntry, ok := safeVideoDataCollection.Read(videoId)
 		if ok {
 			continue
 		}
@@ -110,7 +110,7 @@ func addNewVideosToQueue(videosList string, videosDataAndStatus VideosDataAndSta
 			videoEntry.Id = videoDetails.Id
 			videoEntry.UploadDate = videoDetails.UploadDate
 			videoEntry.Duration = videoDetails.Duration
-			videosDataAndStatus[videoId] = videoEntry
+			safeVideoDataCollection.Write(videoId, videoEntry)
 		}()
 
 		count++
@@ -119,7 +119,7 @@ func addNewVideosToQueue(videosList string, videosDataAndStatus VideosDataAndSta
 	slog.Info(fmt.Sprintf("%v new videos have been added to the queue and are pending download", count))
 }
 
-func addAndUpdateVideosInQueue(videosList string, videosDataAndStatus VideosDataAndStatus) {
+func addAndUpdateVideosInQueue(videosList string, safeVideoDataCollection *SafeVideoDataCollection) {
 	var wg sync.WaitGroup
 	// limit goroutines to 100 at any instant to avoid consuming too much cpu and ram
 	semaphore := make(chan struct{}, 100)
@@ -131,7 +131,7 @@ func addAndUpdateVideosInQueue(videosList string, videosDataAndStatus VideosData
 		}
 
 		// if video details have already been recorded, skip
-		videoEntry, ok := videosDataAndStatus[videoId]
+		videoEntry, ok := safeVideoDataCollection.Read(videoId)
 
 		// if video details have already been recorded, update the details
 		// and set it to be re-indexed while preserving its original status
@@ -147,7 +147,7 @@ func addAndUpdateVideosInQueue(videosList string, videosDataAndStatus VideosData
 				videoEntry.Id = videoDetails.Id
 				videoEntry.UploadDate = videoDetails.UploadDate
 				videoEntry.Duration = videoDetails.Duration
-				videosDataAndStatus[videoId] = videoEntry
+				safeVideoDataCollection.Write(videoId, videoEntry)
 			}()
 			countUpdated++
 		} else {
@@ -162,7 +162,7 @@ func addAndUpdateVideosInQueue(videosList string, videosDataAndStatus VideosData
 				videoEntry.Id = videoDetails.Id
 				videoEntry.UploadDate = videoDetails.UploadDate
 				videoEntry.Duration = videoDetails.Duration
-				videosDataAndStatus[videoId] = videoEntry
+				safeVideoDataCollection.Write(videoId, videoEntry)
 			}()
 			countNew++
 		}
@@ -200,7 +200,7 @@ func getVideoDetails(videoId string) VideoDetails {
 
 }
 
-func downloadVideo(videoId string, videosDataAndStatus VideosDataAndStatus, ouputPath string) {
+func downloadVideo(videoId string, safeVideoDataCollection *SafeVideoDataCollection, ouputPath string) {
 	slog.Info(fmt.Sprintf("Downloading video %s", videoId))
 	videoUrl := "https://www.youtube.com/watch?v=" + videoId
 	// downloads audio only and saves it to the output path with name as videoId.m4a
@@ -210,14 +210,14 @@ func downloadVideo(videoId string, videosDataAndStatus VideosDataAndStatus, oupu
 		slog.Error(fmt.Sprintf("Unable to download video %s: %s", videoId, err.Error()+string(out)))
 	} else {
 		slog.Info(fmt.Sprintf("Downloaded video %s", videoId))
-		videoEntry, _ := videosDataAndStatus[videoId]
+		videoEntry, _ := safeVideoDataCollection.Read(videoId)
 		videoEntry.Status = "downloaded"
-		videosDataAndStatus[videoId] = videoEntry
+		safeVideoDataCollection.Write(videoId, videoEntry)
 	}
 
 }
 
-func processVideo(videoId string, inputPath string, outputPath string, videosDataAndStatus VideosDataAndStatus) {
+func processVideo(videoId string, inputPath string, outputPath string, safeVideoDataCollection *SafeVideoDataCollection) {
 	slog.Info(fmt.Sprintf("Processing video %s", videoId))
 	inputFilePath := filepath.Join(inputPath, fmt.Sprintf("%s.mp3", videoId))
 	outputFilePath := filepath.Join(outputPath, fmt.Sprintf("%s.wav", videoId))
@@ -228,14 +228,14 @@ func processVideo(videoId string, inputPath string, outputPath string, videosDat
 		slog.Error(fmt.Sprintf("Unable to process video %s: %s", videoId, err.Error()+string(out)))
 	} else {
 		slog.Info(fmt.Sprintf("Processed video %s", videoId))
-		videoEntry, _ := videosDataAndStatus[videoId]
+		videoEntry, _ := safeVideoDataCollection.Read(videoId)
 		videoEntry.Status = "processed"
-		videosDataAndStatus[videoId] = videoEntry
+		safeVideoDataCollection.Write(videoId, videoEntry)
 	}
 
 }
 
-func transcribeVideo(videoId string, inputPath string, outputPath string, modelPath string, videosDataAndStatus VideosDataAndStatus) {
+func transcribeVideo(videoId string, inputPath string, outputPath string, modelPath string, safeVideoDataCollection *SafeVideoDataCollection) {
 	slog.Info(fmt.Sprintf("Transcribing video %s", videoId))
 	inputFilePath := filepath.Join(inputPath, fmt.Sprintf("%s.wav", videoId))
 	outputFilePath := filepath.Join(outputPath, videoId)
@@ -246,14 +246,14 @@ func transcribeVideo(videoId string, inputPath string, outputPath string, modelP
 		slog.Error(fmt.Sprintf("Unable to transcribe video %s: %s", videoId, err.Error()+string(out)))
 	} else {
 		slog.Info(fmt.Sprintf("Transcribed video %s", videoId))
-		videoEntry, _ := videosDataAndStatus[videoId]
+		videoEntry, _ := safeVideoDataCollection.Read(videoId)
 		videoEntry.Status = "transcribed"
-		videosDataAndStatus[videoId] = videoEntry
+		safeVideoDataCollection.Write(videoId, videoEntry)
 	}
 
 }
 
-func uploadDocumentsToMeilisearch(documents []Document, searchClient meilisearch.ServiceManager, videosDataAndStatus VideosDataAndStatus) {
+func uploadDocumentsToMeilisearch(documents []Document, searchClient meilisearch.ServiceManager, safeVideoDataCollection *SafeVideoDataCollection) {
 	slog.Info(fmt.Sprintf("Uploading %v documents to search index", len(documents)))
 	_, err := searchClient.Index("videos").UpdateDocuments(documents)
 	if err != nil {
@@ -261,17 +261,17 @@ func uploadDocumentsToMeilisearch(documents []Document, searchClient meilisearch
 	} else {
 		slog.Info(fmt.Sprintf("Uploaded %v documents to search index", len(documents)))
 		for _, document := range documents {
-			videoEntry, _ := videosDataAndStatus[document.Id]
+			videoEntry, _ := safeVideoDataCollection.Read(document.Id)
 			videoEntry.Status = "indexed"
 			videoEntry.ReIndex = false
-			videosDataAndStatus[document.Id] = videoEntry
+			safeVideoDataCollection.Write(document.Id, videoEntry)
 
 		}
 	}
 }
 
-func saveProgress(projectPath string, videosDataAndStatus VideosDataAndStatus) {
-	updatedProgressData, err := json.MarshalIndent(videosDataAndStatus, "", "\t")
+func saveProgress(projectPath string, safeVideoDataCollection *SafeVideoDataCollection) {
+	updatedProgressData, err := json.MarshalIndent(safeVideoDataCollection.videosDataAndStatus, "", "\t")
 	if err != nil {
 		slog.Error(fmt.Sprintf("Unable to marshall videos.json data: %v", err.Error()))
 		os.Exit(1)
@@ -284,16 +284,16 @@ func saveProgress(projectPath string, videosDataAndStatus VideosDataAndStatus) {
 	}
 }
 
-func downloadWorker(downloadQueue <-chan string, processQueue chan<- string, outputPath string, videosDataAndStatus VideosDataAndStatus) {
+func downloadWorker(downloadQueue <-chan string, processQueue chan<- string, outputPath string, safeVideoDataCollection *SafeVideoDataCollection) {
 	for job := range downloadQueue {
-		downloadVideo(job, videosDataAndStatus, outputPath)
+		downloadVideo(job, safeVideoDataCollection, outputPath)
 		processQueue <- job
 	}
 }
 
-func processWorker(processQueue <-chan string, transcribeQueue chan<- string, inputPath string, outputPath string, videosDataAndStatus VideosDataAndStatus) {
+func processWorker(processQueue <-chan string, transcribeQueue chan<- string, inputPath string, outputPath string, safeVideoDataCollection *SafeVideoDataCollection) {
 	for job := range processQueue {
-		processVideo(job, inputPath, outputPath, videosDataAndStatus)
+		processVideo(job, inputPath, outputPath, safeVideoDataCollection)
 		// remove file in previous step to save disk space
 		downloadedFileMp3 := filepath.Join(inputPath, fmt.Sprintf("%s.mp3", job))
 		downloadedFileM4a := filepath.Join(inputPath, fmt.Sprintf("%s.m4a", job))
@@ -305,9 +305,9 @@ func processWorker(processQueue <-chan string, transcribeQueue chan<- string, in
 	}
 }
 
-func transcribeWorker(transcribeQueue <-chan string, indexQueue chan<- string, inputPath string, outputPath string, modelPath string, videosDataAndStatus VideosDataAndStatus, wg *sync.WaitGroup) {
+func transcribeWorker(transcribeQueue <-chan string, indexQueue chan<- string, inputPath string, outputPath string, modelPath string, safeVideoDataCollection *SafeVideoDataCollection, wg *sync.WaitGroup) {
 	for job := range transcribeQueue {
-		transcribeVideo(job, inputPath, outputPath, modelPath, videosDataAndStatus)
+		transcribeVideo(job, inputPath, outputPath, modelPath, safeVideoDataCollection)
 		// remove file in previous step to save disk space
 		processedFile := filepath.Join(inputPath, fmt.Sprintf("%s.wav", job))
 		os.Remove(processedFile)
@@ -315,13 +315,13 @@ func transcribeWorker(transcribeQueue <-chan string, indexQueue chan<- string, i
 	}
 }
 
-func indexWorker(indexQueue <-chan string, transcriptsPath string, searchClient meilisearch.ServiceManager, videosDataAndStatus VideosDataAndStatus, wg *sync.WaitGroup) {
+func indexWorker(indexQueue <-chan string, transcriptsPath string, searchClient meilisearch.ServiceManager, safeVideoDataCollection *SafeVideoDataCollection, wg *sync.WaitGroup) {
 	limiter := time.Tick(5 * time.Second)
 	var documents []Document
 	for {
 		select {
 		case job := <-indexQueue:
-			videoEntry, _ := videosDataAndStatus[job]
+			videoEntry, _ := safeVideoDataCollection.Read(job)
 			transcriptFilePath := filepath.Join(transcriptsPath, fmt.Sprintf("%s.srt", job))
 			transcriptBytes, err := os.ReadFile(transcriptFilePath)
 			if err != nil {
@@ -340,7 +340,7 @@ func indexWorker(indexQueue <-chan string, transcriptsPath string, searchClient 
 			if len(documents) == 0 {
 				continue
 			}
-			uploadDocumentsToMeilisearch(documents, searchClient, videosDataAndStatus)
+			uploadDocumentsToMeilisearch(documents, searchClient, safeVideoDataCollection)
 			// only call wg.Done() on the last step
 			// because all of the jobs that have completed the last step
 			// will be the sum of all the jobs input to all the pipelines
@@ -352,8 +352,8 @@ func indexWorker(indexQueue <-chan string, transcriptsPath string, searchClient 
 	}
 }
 
-func printSummary(videosDataAndStatus VideosDataAndStatus) {
-	countTotal := len(videosDataAndStatus)
+func printSummary(safeVideoDataCollection *SafeVideoDataCollection) {
+	countTotal := len(safeVideoDataCollection.videosDataAndStatus)
 	var countPending int
 	var countDownloaded int
 	var countProcessed int
@@ -361,7 +361,7 @@ func printSummary(videosDataAndStatus VideosDataAndStatus) {
 	var countIndexed int
 	var countReindex int
 
-	for _, video := range videosDataAndStatus {
+	for _, video := range safeVideoDataCollection.videosDataAndStatus {
 		switch video.Status {
 		case "pending":
 			countPending++

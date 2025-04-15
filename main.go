@@ -14,26 +14,6 @@ import (
 	"github.com/meilisearch/meilisearch-go"
 )
 
-// when adding new fields, the gatherVideos and IndexWorker functions
-// have to be updated to assign values to the new fields
-type VideoDetails struct {
-	Id         string `json:"id"`
-	Title      string `json:"title"`
-	UploadDate string `json:"uploadDate"`
-	Duration   string `json:"duration"`
-}
-
-type VideosDataAndStatus map[string]struct {
-	Status  string `json:"status"`
-	ReIndex bool   `json:"reIndex"`
-	VideoDetails
-}
-
-type Document struct {
-	Transcript string `json:"transcript"`
-	VideoDetails
-}
-
 func main() {
 	isUpdate := flag.Bool("u", false, "update details of videos in queue and set them to be reindexed")
 	flag.Parse()
@@ -62,29 +42,32 @@ func main() {
 		os.Exit(1)
 	}
 
-	videosDataAndStatus := VideosDataAndStatus{}
-	err = json.Unmarshal(videosJsonData, &videosDataAndStatus)
+	safeVideoDataCollection := SafeVideoDataCollection{}
+	initialVideoDataCollection := VideoDataCollection{}
+	err = json.Unmarshal(videosJsonData, &initialVideoDataCollection)
 	if err != nil {
 		slog.Error(fmt.Sprintf("Unable to unmarshall videos.json: %v", err.Error()))
 		os.Exit(1)
 	}
 
+	safeVideoDataCollection.videosDataAndStatus = initialVideoDataCollection
+
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	go func() {
 		<-c
-		saveProgress(dataPath, videosDataAndStatus)
-		printSummary(videosDataAndStatus)
+		saveProgress(dataPath, &safeVideoDataCollection)
+		printSummary(&safeVideoDataCollection)
 
 		os.Exit(130)
 	}()
 
-	err = gatherVideos(channelUrl, *isUpdate, videosDataAndStatus)
+	err = gatherVideos(channelUrl, *isUpdate, &safeVideoDataCollection)
 	if err != nil {
 		slog.Warn(fmt.Sprintf("Unable to gather videos: %v", err.Error()))
 	}
 
-	printSummary(videosDataAndStatus)
+	printSummary(&safeVideoDataCollection)
 
 	downloadDir := filepath.Join(dataPath, "downloads")
 	processedDir := filepath.Join(dataPath, "processed")
@@ -98,17 +81,17 @@ func main() {
 	var wg sync.WaitGroup
 
 	for range 5 {
-		go downloadWorker(downloadQueue, processQueue, downloadDir, videosDataAndStatus)
-		go processWorker(processQueue, transcribeQueue, downloadDir, processedDir, videosDataAndStatus)
+		go downloadWorker(downloadQueue, processQueue, downloadDir, &safeVideoDataCollection)
+		go processWorker(processQueue, transcribeQueue, downloadDir, processedDir, &safeVideoDataCollection)
 	}
 
 	for range 2 {
-		go transcribeWorker(transcribeQueue, indexQueue, processedDir, transcriptsDir, whisperModelPath, videosDataAndStatus, &wg)
+		go transcribeWorker(transcribeQueue, indexQueue, processedDir, transcriptsDir, whisperModelPath, &safeVideoDataCollection, &wg)
 	}
 
-	go indexWorker(indexQueue, transcriptsDir, searchClient, videosDataAndStatus, &wg)
+	go indexWorker(indexQueue, transcriptsDir, searchClient, &safeVideoDataCollection, &wg)
 
-	for id, video := range videosDataAndStatus {
+	for id, video := range safeVideoDataCollection.videosDataAndStatus {
 		switch video.Status {
 		case "pending":
 			slog.Info("Adding to download queue")
@@ -139,6 +122,6 @@ func main() {
 
 	wg.Wait()
 
-	saveProgress(dataPath, videosDataAndStatus)
-	printSummary(videosDataAndStatus)
+	saveProgress(dataPath, &safeVideoDataCollection)
+	printSummary(&safeVideoDataCollection)
 }
