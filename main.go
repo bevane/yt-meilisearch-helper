@@ -106,6 +106,7 @@ func main() {
 			slog.Info("Adding to index queue")
 			wg.Add(1)
 			indexQueue <- id
+		case "indexed":
 		default:
 			slog.Error(fmt.Sprintf("Unexpected video status: %s", video.Status))
 		}
