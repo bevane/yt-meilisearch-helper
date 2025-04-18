@@ -80,12 +80,9 @@ func main() {
 
 	var wg sync.WaitGroup
 
-	for range 5 {
+	for range 2 {
 		go downloadWorker(downloadQueue, processQueue, downloadDir, &safeVideoDataCollection)
 		go processWorker(processQueue, transcribeQueue, downloadDir, processedDir, &safeVideoDataCollection)
-	}
-
-	for range 2 {
 		go transcribeWorker(transcribeQueue, indexQueue, processedDir, transcriptsDir, whisperModelPath, &safeVideoDataCollection, &wg)
 	}
 
