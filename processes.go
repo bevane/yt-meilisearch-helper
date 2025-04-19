@@ -328,7 +328,7 @@ func transcribeWorker(transcribeQueue <-chan string, indexQueue chan<- string, i
 }
 
 func indexWorker(indexQueue <-chan string, transcriptsPath string, searchClient meilisearch.ServiceManager, safeVideoDataCollection *SafeVideoDataCollection, wg *sync.WaitGroup) {
-	limiter := time.Tick(5 * time.Second)
+	limiter := time.Tick(5 * time.Minute)
 	var documents []Document
 	for {
 		select {
