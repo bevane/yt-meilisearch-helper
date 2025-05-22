@@ -68,7 +68,7 @@ func initDataDir(dataPath string) error {
 func gatherVideos(url string, isUpdate bool, safeVideoDataCollection *SafeVideoDataCollection) error {
 	slog.Info("Checking channel for new videos")
 	cmdFetch := exec.Command("yt-dlp", "--flat-playlist", "--print", "%(id)s", url)
-	out, err := cmdFetch.CombinedOutput()
+	out, err := cmdFetch.Output()
 	outString := string(out)
 	if err != nil {
 		return errors.New(err.Error() + outString)
@@ -177,7 +177,7 @@ func getVideoDetails(videoId string) VideoDetails {
 	// title has to be last because title has spaces within it and we use space to separate
 	// this string later
 	cmdFetch := exec.Command("yt-dlp", "--print", "%(upload_date)s %(duration)s %(title)s", videoUrl)
-	out, err := cmdFetch.CombinedOutput()
+	out, err := cmdFetch.Output()
 	outString := string(out)
 	outString = strings.TrimSuffix(outString, "\n")
 	if err != nil {
@@ -199,7 +199,7 @@ func downloadVideo(videoId string, safeVideoDataCollection *SafeVideoDataCollect
 	videoUrl := "https://www.youtube.com/watch?v=" + videoId
 	// downloads audio only and saves it to the output path with name as videoId.m4a
 	cmdFetch := exec.Command("yt-dlp", "-x", "--audio-format", "mp3", "-P", ouputPath, "-o", "%(id)s.%(ext)s", videoUrl)
-	out, err := cmdFetch.CombinedOutput()
+	out, err := cmdFetch.Output()
 	if err != nil {
 		slog.Error(fmt.Sprintf("Unable to download video %s: %s", videoId, err.Error()+string(out)))
 	} else {
@@ -226,7 +226,7 @@ func processVideo(videoId string, inputPath string, outputPath string, safeVideo
 	}
 
 	cmdFetch := exec.Command("ffmpeg", "-i", inputFilePath, "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", outputFilePath)
-	out, err := cmdFetch.CombinedOutput()
+	out, err := cmdFetch.Output()
 	if err != nil {
 		slog.Error(fmt.Sprintf("Unable to process video %s: %s", videoId, err.Error()+string(out)))
 	} else {
@@ -253,7 +253,7 @@ func transcribeVideo(videoId string, inputPath string, outputPath string, modelP
 	}
 
 	cmdFetch := exec.Command("whisper-cli", "-osrt", "-m", modelPath, "-f", inputFilePath, "-of", outputFilePath)
-	out, err := cmdFetch.CombinedOutput()
+	out, err := cmdFetch.Output()
 	if err != nil {
 		slog.Error(fmt.Sprintf("Unable to transcribe video %s: %s", videoId, err.Error()+string(out)))
 	} else {
