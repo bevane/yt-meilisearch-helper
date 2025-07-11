@@ -1,4 +1,4 @@
-module github.com/bevane/safina-society-search-helper
+module github.com/bevane/yt-meilisearch-helper
 
 go 1.24.1
 
