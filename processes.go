@@ -180,6 +180,8 @@ func getVideoDetails(videoId string) VideoDetails {
 	videoUrl := "https://www.youtube.com/watch?v=" + videoId
 	// title has to be last because title has spaces within it and space is used as a separator to split this string
 	cmdFetch := exec.Command("yt-dlp", "--print", "%(upload_date)s %(duration)s %(title)s", videoUrl)
+	// Only capture stdout in out and do not capture stderr else stderr will end up
+	// in the video details in case of warnings
 	out, err := cmdFetch.Output()
 	outString := string(out)
 	outString = strings.TrimSuffix(outString, "\n")
@@ -202,7 +204,7 @@ func downloadVideo(videoId string, safeVideoDataCollection *SafeVideoDataCollect
 	videoUrl := "https://www.youtube.com/watch?v=" + videoId
 	// downloads audio only and saves it to the output path with name as videoId.mp3
 	cmdFetch := exec.Command("yt-dlp", "-x", "--audio-format", "mp3", "-P", ouputPath, "-o", "%(id)s.%(ext)s", videoUrl)
-	out, err := cmdFetch.Output()
+	out, err := cmdFetch.CombinedOutput()
 	if err != nil {
 		slog.Error(fmt.Sprintf("Unable to download video %s: %s", videoId, err.Error()+string(out)))
 		return err
@@ -231,7 +233,7 @@ func processVideo(videoId string, inputPath string, outputPath string, safeVideo
 	}
 
 	cmdFetch := exec.Command("ffmpeg", "-i", inputFilePath, "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", outputFilePath)
-	out, err := cmdFetch.Output()
+	out, err := cmdFetch.CombinedOutput()
 	if err != nil {
 		slog.Error(fmt.Sprintf("Unable to process video %s: %s", videoId, err.Error()+string(out)))
 		return err
@@ -260,7 +262,7 @@ func transcribeVideo(videoId string, inputPath string, outputPath string, modelP
 	}
 
 	cmdFetch := exec.Command("whisper-cli", "-osrt", "-m", modelPath, "-f", inputFilePath, "-of", outputFilePath)
-	out, err := cmdFetch.Output()
+	out, err := cmdFetch.CombinedOutput()
 	if err != nil {
 		slog.Error(fmt.Sprintf("Unable to transcribe video %s: %s", videoId, err.Error()+string(out)))
 		return err
