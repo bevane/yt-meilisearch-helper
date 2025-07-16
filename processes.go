@@ -88,7 +88,7 @@ func addNewVideosToQueue(videosList string, safeVideoDataCollection *SafeVideoDa
 	// for each video in parallel to speed up the process
 	// limit number of goroutines running at the same time to avoid
 	// consuming too much cpu and ram
-	semaphore := make(chan struct{}, 100)
+	semaphore := make(chan struct{}, maxWorkers)
 	var count int
 	for videoId := range strings.SplitSeq(videosList, "\n") {
 		if videoId == "" {
@@ -128,7 +128,7 @@ func addAndUpdateVideosInQueue(videosList string, safeVideoDataCollection *SafeV
 	// for each video in parallel to speed up the process
 	// limit number of goroutines running at the same time to avoid
 	// consuming too much cpu and ram
-	semaphore := make(chan struct{}, 100)
+	semaphore := make(chan struct{}, maxWorkers)
 	var countNew int
 	var countUpdated int
 	for videoId := range strings.SplitSeq(videosList, "\n") {
