@@ -15,7 +15,7 @@ import (
 )
 
 func main() {
-	isUpdate := flag.Bool("u", false, "update details of videos in queue and set them to be reindexed")
+	isUpdate := flag.Bool("u", false, "update details/metadata of videos in queue and set them to be reindexed")
 	flag.Parse()
 
 	godotenv.Load(".env")
@@ -36,6 +36,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	// progress for each video is saved in videos.json
 	videosJsonData, err := os.ReadFile(filepath.Join(dataPath, "videos.json"))
 	if err != nil {
 		slog.Error(fmt.Sprintf("Unable to read videos.json: %v", err.Error()))
@@ -52,6 +53,7 @@ func main() {
 
 	safeVideoDataCollection.videosDataAndStatus = initialVideoDataCollection
 
+	// gracefully shutdown on interrupt signal
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	go func() {
@@ -70,6 +72,8 @@ func main() {
 	printSummary(&safeVideoDataCollection)
 
 	downloadDir := filepath.Join(dataPath, "downloads")
+	// the downloaded file has to be converted to a specific format for
+	// whisper to transcribe it (check whisper.cpp documentation for details)
 	processedDir := filepath.Join(dataPath, "processed")
 	transcriptsDir := filepath.Join(dataPath, "transcripts")
 
@@ -80,15 +84,21 @@ func main() {
 
 	var wg sync.WaitGroup
 
+	// n+1 (n = number of transcribe workers) concurrent workers for downloading and processing is sufficient
+	// as transcribing is the bottleneck. This can be increased to create
+	// a larger buffer of downloaded and processed videos
 	for range 3 {
 		go downloadWorker(downloadQueue, processQueue, downloadDir, &safeVideoDataCollection)
 		go processWorker(processQueue, transcribeQueue, downloadDir, processedDir, &safeVideoDataCollection)
 	}
 
+	// 1 is recommended, can be increased if more system resources are available to run multiple LLM processes at the same time
 	for range 2 {
 		go transcribeWorker(transcribeQueue, indexQueue, processedDir, transcriptsDir, whisperModelPath, &safeVideoDataCollection, &wg)
 	}
 
+	// indexWorker uploades batches of json files to meilisearch, hence
+	// one worker is sufficient
 	go indexWorker(indexQueue, transcriptsDir, searchClient, &safeVideoDataCollection, &wg)
 
 	for id, video := range safeVideoDataCollection.videosDataAndStatus {

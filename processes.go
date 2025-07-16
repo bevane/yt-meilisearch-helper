@@ -74,7 +74,7 @@ func gatherVideos(url string, isUpdate bool, safeVideoDataCollection *SafeVideoD
 		return errors.New(err.Error() + outString)
 	}
 	if isUpdate {
-		slog.Info("Setting videos to be reindexed")
+		slog.Info("video details/metadata of all videos already in queue will be refetched and reindexed")
 		addAndUpdateVideosInQueue(outString, safeVideoDataCollection)
 	} else {
 		addNewVideosToQueue(outString, safeVideoDataCollection)
@@ -84,7 +84,10 @@ func gatherVideos(url string, isUpdate bool, safeVideoDataCollection *SafeVideoD
 
 func addNewVideosToQueue(videosList string, safeVideoDataCollection *SafeVideoDataCollection) {
 	var wg sync.WaitGroup
-	// limit goroutines to 100 at any instant to avoid consuming too much cpu and ram
+	// fetching video details for each video id is slow, hence fetch details
+	// for each video in parallel to speed up the process
+	// limit number of goroutines running at the same time to avoid
+	// consuming too much cpu and ram
 	semaphore := make(chan struct{}, 100)
 	var count int
 	for videoId := range strings.SplitSeq(videosList, "\n") {
@@ -121,7 +124,10 @@ func addNewVideosToQueue(videosList string, safeVideoDataCollection *SafeVideoDa
 
 func addAndUpdateVideosInQueue(videosList string, safeVideoDataCollection *SafeVideoDataCollection) {
 	var wg sync.WaitGroup
-	// limit goroutines to 100 at any instant to avoid consuming too much cpu and ram
+	// fetching video details for each video id is slow, hence fetch details
+	// for each video in parallel to speed up the process
+	// limit number of goroutines running at the same time to avoid
+	// consuming too much cpu and ram
 	semaphore := make(chan struct{}, 100)
 	var countNew int
 	var countUpdated int
@@ -130,9 +136,7 @@ func addAndUpdateVideosInQueue(videosList string, safeVideoDataCollection *SafeV
 			continue
 		}
 
-		// if video details have already been recorded, skip
 		videoEntry, ok := safeVideoDataCollection.Read(videoId)
-
 		// if video details have already been recorded, update the details
 		// and set it to be re-indexed while preserving its original status
 		wg.Add(1)
@@ -174,8 +178,7 @@ func addAndUpdateVideosInQueue(videosList string, safeVideoDataCollection *SafeV
 
 func getVideoDetails(videoId string) VideoDetails {
 	videoUrl := "https://www.youtube.com/watch?v=" + videoId
-	// title has to be last because title has spaces within it and we use space to separate
-	// this string later
+	// title has to be last because title has spaces within it and space is used as a separator to split this string
 	cmdFetch := exec.Command("yt-dlp", "--print", "%(upload_date)s %(duration)s %(title)s", videoUrl)
 	out, err := cmdFetch.Output()
 	outString := string(out)
@@ -197,7 +200,7 @@ func getVideoDetails(videoId string) VideoDetails {
 func downloadVideo(videoId string, safeVideoDataCollection *SafeVideoDataCollection, ouputPath string) {
 	slog.Info(fmt.Sprintf("Downloading video %s", videoId))
 	videoUrl := "https://www.youtube.com/watch?v=" + videoId
-	// downloads audio only and saves it to the output path with name as videoId.m4a
+	// downloads audio only and saves it to the output path with name as videoId.mp3
 	cmdFetch := exec.Command("yt-dlp", "-x", "--audio-format", "mp3", "-P", ouputPath, "-o", "%(id)s.%(ext)s", videoUrl)
 	out, err := cmdFetch.Output()
 	if err != nil {
@@ -328,6 +331,10 @@ func transcribeWorker(transcribeQueue <-chan string, indexQueue chan<- string, i
 }
 
 func indexWorker(indexQueue <-chan string, transcriptsPath string, searchClient meilisearch.ServiceManager, safeVideoDataCollection *SafeVideoDataCollection, wg *sync.WaitGroup) {
+	// upload video documents to meilisearch every 5 minutes in batch to avoid
+	// sending too many requests to meilisearch instance
+	// batch uploading is recommended by meilisearch instead of uploading
+	// documents one by one
 	limiter := time.Tick(5 * time.Minute)
 	var documents []Document
 	for {
