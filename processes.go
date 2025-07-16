@@ -388,7 +388,7 @@ func indexWorker(indexQueue <-chan string, transcriptsPath string, searchClient 
 	}
 }
 
-func printSummary(safeVideoDataCollection *SafeVideoDataCollection) {
+func printSummary(safeVideoDataCollection *SafeVideoDataCollection, maxDownloadAndProcessWorkers int, maxVideoDetailFetchWorkers int, maxTranscribeWorkers int) {
 	countTotal := len(safeVideoDataCollection.videosDataAndStatus)
 	var countPending int
 	var countDownloaded int
@@ -429,13 +429,21 @@ Pending Transcribing: %v
 Pending Indexing: %v
 Pending Re-Indexing: %v
 
+Max Download/Process Workers: %v
+Max Video Fetch Workers: %v
+Max Transcribe Workers: %v
 
-`, countTotal,
+
+`,
+		countTotal,
 		countIndexed,
 		countPending,
 		countDownloaded,
 		countProcessed,
 		countTranscribed,
 		countReindex,
+		maxDownloadAndProcessWorkers,
+		maxVideoDetailFetchWorkers,
+		maxTranscribeWorkers,
 	))
 }

@@ -45,6 +45,11 @@ func main() {
 		slog.Error(fmt.Sprintf("MAX_VIDEO_DETAIL_FETCH_WORKERS env variable is invalid: %s", err.Error()))
 		os.Exit(1)
 	}
+	maxTranscribeWorkers, err := strconv.Atoi(os.Getenv("MAX_TRANSCRIBE_WORKERS"))
+	if err != nil {
+		slog.Error(fmt.Sprintf("MAX_TRANSCRIBE_WORKERS env variable is invalid: %s", err.Error()))
+		os.Exit(1)
+	}
 
 	searchClient, err := meilisearch.Connect(os.Getenv("MEILISEARCH_URL"), meilisearch.WithAPIKey(os.Getenv("MEILISEARCH_API_KEY")))
 	if err != nil {
@@ -82,7 +87,7 @@ func main() {
 	go func() {
 		<-c
 		saveProgress(dataPath, &safeVideoDataCollection)
-		printSummary(&safeVideoDataCollection)
+		printSummary(&safeVideoDataCollection, maxDownloadAndProcessWorkers, maxVideoDetailFetchWorkers, maxTranscribeWorkers)
 
 		os.Exit(130)
 	}()
@@ -92,7 +97,7 @@ func main() {
 		slog.Warn(fmt.Sprintf("Unable to gather videos: %v", err.Error()))
 	}
 
-	printSummary(&safeVideoDataCollection)
+	printSummary(&safeVideoDataCollection, maxDownloadAndProcessWorkers, maxVideoDetailFetchWorkers, maxTranscribeWorkers)
 
 	downloadDir := filepath.Join(dataPath, "downloads")
 	// the downloaded file has to be converted to a specific format for
@@ -110,13 +115,14 @@ func main() {
 	// n+1 (n = number of transcribe workers) concurrent workers for downloading and processing is sufficient
 	// as transcribing is the bottleneck. This can be increased to create
 	// a larger buffer of downloaded and processed videos
+
 	for range maxDownloadAndProcessWorkers {
 		go downloadWorker(downloadQueue, processQueue, downloadDir, &safeVideoDataCollection)
 		go processWorker(processQueue, transcribeQueue, downloadDir, processedDir, &safeVideoDataCollection)
 	}
 
 	// 1 is recommended, can be increased if more system resources are available to run multiple LLM processes at the same time
-	for range 2 {
+	for range maxTranscribeWorkers {
 		go transcribeWorker(transcribeQueue, indexQueue, processedDir, transcriptsDir, whisperModelPath, &safeVideoDataCollection, &wg)
 	}
 
@@ -157,5 +163,5 @@ func main() {
 	wg.Wait()
 
 	saveProgress(dataPath, &safeVideoDataCollection)
-	printSummary(&safeVideoDataCollection)
+	printSummary(&safeVideoDataCollection, maxDownloadAndProcessWorkers, maxVideoDetailFetchWorkers, maxTranscribeWorkers)
 }
