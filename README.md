@@ -19,19 +19,20 @@ YTMS makes use of yt-dlp to scan a YouTube Channel for videos. Then YTMS downloa
 
 ### Configure
 1. Create .env file and set env variables. Refer to .env.example
+
 The following env variables have to be set up for the tool to work.
- - `DATA_PATH` - This is where all the transcripts will be saved and also the save progress of YTMS. Choose a directory that you have write permissions to.
- - `CHANNEL_URL` - The URL of the YouTube channel from which the videos will be transcribed.
- - `MEILISEARCH_URL` - The URL of the Meilisearch Instance. If video transcripts does not need to be uploaded to meilisearch, this can be left blank"
- - `MEILISEARCH_API_KEY` - The API Key of the Meilisearch Instance. If video transcripts does not need to be uploaded to meilisearch, this can be left blank"
- - `WHISPER_MODEL_PATH` - File Path to the whisper model that will be used for transcription. Refer to Whisper.cpp documentation for details.
+ - `DATA_PATH` - This is where all the transcripts will be saved and also the save progress of YTMS. Videos that are being downloaded and processed will also be stored in this directory, and will be cleaned up automatically. Choose a directory that you have write permissions to
+ - `CHANNEL_URL` - The URL of the YouTube channel from which the videos will be transcribed
+ - `MEILISEARCH_URL` - The URL of the Meilisearch Instance. If video transcripts do not need to be uploaded to Meilisearch, this can be left blank
+ - `MEILISEARCH_API_KEY` - The API Key of the Meilisearch Instance. If video transcripts do not need to be uploaded to Meilisearch, this can be left blank
+ - `WHISPER_MODEL_PATH` - File Path to the whisper model that will be used for transcription. Refer to Whisper.cpp documentation for details
 
 > [!warning]
-> Set the below values responsibily. Setting them too high can cause the system to run out of resources and crash.
+> Set the below values responsibily. Setting them too high can cause the system to run out of resources and crash
  - `MAX_DOWNLOAD_PROCESS_WORKERS` - The number of download workers and process workers that will be run in parallel. A value of two will run two yt-dlp processes and two ffmpeg processes in parallel. It is recommended to set this to n + 1 where n is the number of Transcribe workers. This ensures that a video is always available to be transcribed by the transcribe worker.
- - `MAX_VIDEO_DETAIL_FETCH_WORKERS` - The number of yt-dlp processes that will be run in parallel to fetch video details such as titl, upload date and duration of video. It is recommended to set this to 10-20. Higher values can be used if more system resources are available.
- - `MAX_TRANSCRIBE_WORKERS` - The number of whisper.cpp processes that will run in parallel to transcribe videos. It is recommended to set this to 1 and experiment with increasing it while keeping an eye on system resources used. Higher values can be used if using GPU with a high VRAM to run the Whisper model.
+ - `MAX_VIDEO_DETAIL_FETCH_WORKERS` - The number of yt-dlp processes that will be run in parallel to fetch video details such as title, upload date and duration of video. It is recommended to set this between 10-20. Higher values can be used if more system resources are available.
+ - `MAX_TRANSCRIBE_WORKERS` - The number of whisper.cpp processes that will run in parallel to transcribe videos. It is recommended to set this to 1 and monitor system resouces first, then experiment with increasing it while keeping an eye on system resources used. Higher values can be used if using GPU with a high VRAM to run the Whisper model.
 
 ### Run
 
-Run the tool after configuring it with `./yt-meilisearch-helper` from within the repo directory
+Run the tool `./yt-meilisearch-helper` from within the repo directory
