@@ -197,7 +197,7 @@ func getVideoDetails(videoId string) VideoDetails {
 
 }
 
-func downloadVideo(videoId string, safeVideoDataCollection *SafeVideoDataCollection, ouputPath string) {
+func downloadVideo(videoId string, safeVideoDataCollection *SafeVideoDataCollection, ouputPath string) error {
 	slog.Info(fmt.Sprintf("Downloading video %s", videoId))
 	videoUrl := "https://www.youtube.com/watch?v=" + videoId
 	// downloads audio only and saves it to the output path with name as videoId.mp3
@@ -205,16 +205,18 @@ func downloadVideo(videoId string, safeVideoDataCollection *SafeVideoDataCollect
 	out, err := cmdFetch.Output()
 	if err != nil {
 		slog.Error(fmt.Sprintf("Unable to download video %s: %s", videoId, err.Error()+string(out)))
-	} else {
-		slog.Info(fmt.Sprintf("Downloaded video %s", videoId))
-		videoEntry, _ := safeVideoDataCollection.Read(videoId)
-		videoEntry.Status = "downloaded"
-		safeVideoDataCollection.Write(videoId, videoEntry)
+		return err
 	}
+
+	slog.Info(fmt.Sprintf("Downloaded video %s", videoId))
+	videoEntry, _ := safeVideoDataCollection.Read(videoId)
+	videoEntry.Status = "downloaded"
+	safeVideoDataCollection.Write(videoId, videoEntry)
+	return nil
 
 }
 
-func processVideo(videoId string, inputPath string, outputPath string, safeVideoDataCollection *SafeVideoDataCollection) {
+func processVideo(videoId string, inputPath string, outputPath string, safeVideoDataCollection *SafeVideoDataCollection) error {
 	slog.Info(fmt.Sprintf("Processing video %s", videoId))
 	inputFilePath := filepath.Join(inputPath, fmt.Sprintf("%s.mp3", videoId))
 	outputFilePath := filepath.Join(outputPath, fmt.Sprintf("%s.wav", videoId))
@@ -225,23 +227,25 @@ func processVideo(videoId string, inputPath string, outputPath string, safeVideo
 		videoEntry, _ := safeVideoDataCollection.Read(videoId)
 		videoEntry.Status = "processed"
 		safeVideoDataCollection.Write(videoId, videoEntry)
-		return
+		return nil
 	}
 
 	cmdFetch := exec.Command("ffmpeg", "-i", inputFilePath, "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", outputFilePath)
 	out, err := cmdFetch.Output()
 	if err != nil {
 		slog.Error(fmt.Sprintf("Unable to process video %s: %s", videoId, err.Error()+string(out)))
-	} else {
-		slog.Info(fmt.Sprintf("Processed video %s", videoId))
-		videoEntry, _ := safeVideoDataCollection.Read(videoId)
-		videoEntry.Status = "processed"
-		safeVideoDataCollection.Write(videoId, videoEntry)
+		return err
 	}
+
+	slog.Info(fmt.Sprintf("Processed video %s", videoId))
+	videoEntry, _ := safeVideoDataCollection.Read(videoId)
+	videoEntry.Status = "processed"
+	safeVideoDataCollection.Write(videoId, videoEntry)
+	return nil
 
 }
 
-func transcribeVideo(videoId string, inputPath string, outputPath string, modelPath string, safeVideoDataCollection *SafeVideoDataCollection) {
+func transcribeVideo(videoId string, inputPath string, outputPath string, modelPath string, safeVideoDataCollection *SafeVideoDataCollection) error {
 	slog.Info(fmt.Sprintf("Transcribing video %s", videoId))
 	inputFilePath := filepath.Join(inputPath, fmt.Sprintf("%s.wav", videoId))
 	outputFilePath := filepath.Join(outputPath, videoId)
@@ -252,19 +256,21 @@ func transcribeVideo(videoId string, inputPath string, outputPath string, modelP
 		videoEntry, _ := safeVideoDataCollection.Read(videoId)
 		videoEntry.Status = "transcribed"
 		safeVideoDataCollection.Write(videoId, videoEntry)
-		return
+		return nil
 	}
 
 	cmdFetch := exec.Command("whisper-cli", "-osrt", "-m", modelPath, "-f", inputFilePath, "-of", outputFilePath)
 	out, err := cmdFetch.Output()
 	if err != nil {
 		slog.Error(fmt.Sprintf("Unable to transcribe video %s: %s", videoId, err.Error()+string(out)))
-	} else {
-		slog.Info(fmt.Sprintf("Transcribed video %s", videoId))
-		videoEntry, _ := safeVideoDataCollection.Read(videoId)
-		videoEntry.Status = "transcribed"
-		safeVideoDataCollection.Write(videoId, videoEntry)
+		return err
 	}
+
+	slog.Info(fmt.Sprintf("Transcribed video %s", videoId))
+	videoEntry, _ := safeVideoDataCollection.Read(videoId)
+	videoEntry.Status = "transcribed"
+	safeVideoDataCollection.Write(videoId, videoEntry)
+	return nil
 
 }
 
@@ -301,14 +307,20 @@ func saveProgress(projectPath string, safeVideoDataCollection *SafeVideoDataColl
 
 func downloadWorker(downloadQueue <-chan string, processQueue chan<- string, outputPath string, safeVideoDataCollection *SafeVideoDataCollection) {
 	for job := range downloadQueue {
-		downloadVideo(job, safeVideoDataCollection, outputPath)
+		err := downloadVideo(job, safeVideoDataCollection, outputPath)
+		if err != nil {
+			continue
+		}
 		processQueue <- job
 	}
 }
 
 func processWorker(processQueue <-chan string, transcribeQueue chan<- string, inputPath string, outputPath string, safeVideoDataCollection *SafeVideoDataCollection) {
 	for job := range processQueue {
-		processVideo(job, inputPath, outputPath, safeVideoDataCollection)
+		err := processVideo(job, inputPath, outputPath, safeVideoDataCollection)
+		if err != nil {
+			continue
+		}
 		// remove file in previous step to save disk space
 		downloadedFileMp3 := filepath.Join(inputPath, fmt.Sprintf("%s.mp3", job))
 		downloadedFileM4a := filepath.Join(inputPath, fmt.Sprintf("%s.m4a", job))
@@ -322,7 +334,10 @@ func processWorker(processQueue <-chan string, transcribeQueue chan<- string, in
 
 func transcribeWorker(transcribeQueue <-chan string, indexQueue chan<- string, inputPath string, outputPath string, modelPath string, safeVideoDataCollection *SafeVideoDataCollection, wg *sync.WaitGroup) {
 	for job := range transcribeQueue {
-		transcribeVideo(job, inputPath, outputPath, modelPath, safeVideoDataCollection)
+		err := transcribeVideo(job, inputPath, outputPath, modelPath, safeVideoDataCollection)
+		if err != nil {
+			continue
+		}
 		// remove file in previous step to save disk space
 		processedFile := filepath.Join(inputPath, fmt.Sprintf("%s.wav", job))
 		os.Remove(processedFile)
