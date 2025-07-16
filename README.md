@@ -36,3 +36,9 @@ The following env variables have to be set up for the tool to work.
 ### Run
 
 Run the tool `./yt-meilisearch-helper` from within the repo directory
+
+## Contributing
+Contributions are welcome. Please fork the repo and open pull requests to contribute.
+
+## License
+This tool is released under the MIT License
