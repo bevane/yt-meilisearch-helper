@@ -274,7 +274,7 @@ func uploadDocumentsToMeilisearch(documents []Document, searchClient meilisearch
 	if err != nil {
 		slog.Error(fmt.Sprintf("Unable to upload to index: %s", err.Error()))
 	} else {
-		slog.Info(fmt.Sprintf("Uploaded %v documents to search index", len(documents)))
+		slog.Info(fmt.Sprintf("Uploaded %v documents to search index: %v", len(documents), documents))
 		for _, document := range documents {
 			videoEntry, _ := safeVideoDataCollection.Read(document.Id)
 			videoEntry.Status = "indexed"
