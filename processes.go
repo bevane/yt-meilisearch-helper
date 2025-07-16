@@ -221,7 +221,7 @@ func processVideo(videoId string, inputPath string, outputPath string, safeVideo
 
 	_, err := os.Stat(outputFilePath)
 	if err == nil {
-		slog.Warn(fmt.Sprintf("Processed video for %s already exists, skipping", videoId))
+		slog.Warn(fmt.Sprintf("Processed video for %s already exists, skipping processing, existing file will be used", videoId))
 		videoEntry, _ := safeVideoDataCollection.Read(videoId)
 		videoEntry.Status = "processed"
 		safeVideoDataCollection.Write(videoId, videoEntry)
@@ -248,7 +248,7 @@ func transcribeVideo(videoId string, inputPath string, outputPath string, modelP
 
 	_, err := os.Stat(outputFilePath + ".srt")
 	if err == nil {
-		slog.Warn(fmt.Sprintf("Transcript for video %s already exists, skipping", videoId))
+		slog.Warn(fmt.Sprintf("Transcript for video %s already exists, skippingtranscribing, existing file will be used", videoId))
 		videoEntry, _ := safeVideoDataCollection.Read(videoId)
 		videoEntry.Status = "transcribed"
 		safeVideoDataCollection.Write(videoId, videoEntry)
