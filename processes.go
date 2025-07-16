@@ -65,7 +65,7 @@ func initDataDir(dataPath string) error {
 	return nil
 }
 
-func gatherVideos(url string, isUpdate bool, safeVideoDataCollection *SafeVideoDataCollection) error {
+func gatherVideos(url string, isUpdate bool, safeVideoDataCollection *SafeVideoDataCollection, maxWorkers int) error {
 	slog.Info("Checking channel for new videos")
 	cmdFetch := exec.Command("yt-dlp", "--flat-playlist", "--print", "%(id)s", url)
 	out, err := cmdFetch.Output()
@@ -75,14 +75,14 @@ func gatherVideos(url string, isUpdate bool, safeVideoDataCollection *SafeVideoD
 	}
 	if isUpdate {
 		slog.Info("video details/metadata of all videos already in queue will be refetched and reindexed")
-		addAndUpdateVideosInQueue(outString, safeVideoDataCollection)
+		addAndUpdateVideosInQueue(outString, safeVideoDataCollection, maxWorkers)
 	} else {
-		addNewVideosToQueue(outString, safeVideoDataCollection)
+		addNewVideosToQueue(outString, safeVideoDataCollection, maxWorkers)
 	}
 	return nil
 }
 
-func addNewVideosToQueue(videosList string, safeVideoDataCollection *SafeVideoDataCollection) {
+func addNewVideosToQueue(videosList string, safeVideoDataCollection *SafeVideoDataCollection, maxWorkers int) {
 	var wg sync.WaitGroup
 	// fetching video details for each video id is slow, hence fetch details
 	// for each video in parallel to speed up the process
@@ -122,7 +122,7 @@ func addNewVideosToQueue(videosList string, safeVideoDataCollection *SafeVideoDa
 	slog.Info(fmt.Sprintf("%v new videos have been added to the queue and are pending download", count))
 }
 
-func addAndUpdateVideosInQueue(videosList string, safeVideoDataCollection *SafeVideoDataCollection) {
+func addAndUpdateVideosInQueue(videosList string, safeVideoDataCollection *SafeVideoDataCollection, maxWorkers int) {
 	var wg sync.WaitGroup
 	// fetching video details for each video id is slow, hence fetch details
 	// for each video in parallel to speed up the process

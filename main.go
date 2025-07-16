@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"sync"
 
 	"github.com/joho/godotenv"
@@ -20,8 +21,30 @@ func main() {
 
 	godotenv.Load(".env")
 	dataPath := os.Getenv("DATA_PATH")
+	if dataPath == "" {
+		slog.Error(fmt.Sprintln("DATA_PATH env variable is not set"))
+		os.Exit(1)
+	}
 	channelUrl := os.Getenv("CHANNEL_URL")
+	if channelUrl == "" {
+		slog.Error(fmt.Sprintln("CHANNEL_URL env variable is not set"))
+		os.Exit(1)
+	}
 	whisperModelPath := os.Getenv("WHISPER_MODEL_PATH")
+	if whisperModelPath == "" {
+		slog.Error(fmt.Sprintln("WHISPER_MODEL_PATH env variable is not set"))
+		os.Exit(1)
+	}
+	maxDownloadAndProcessWorkers, err := strconv.Atoi(os.Getenv("MAX_DOWNLOAD_PROCESS_WORKERS"))
+	if err != nil {
+		slog.Error(fmt.Sprintf("MAX_DOWNLOAD_PROCESS_WORKERS env variable is invalid: %s", err.Error()))
+		os.Exit(1)
+	}
+	maxVideoDetailFetchWorkers, err := strconv.Atoi(os.Getenv("MAX_VIDEO_DETAIL_FETCH_WORKERS"))
+	if err != nil {
+		slog.Error(fmt.Sprintf("MAX_VIDEO_DETAIL_FETCH_WORKERS env variable is invalid: %s", err.Error()))
+		os.Exit(1)
+	}
 
 	searchClient, err := meilisearch.Connect(os.Getenv("MEILISEARCH_URL"), meilisearch.WithAPIKey(os.Getenv("MEILISEARCH_API_KEY")))
 	if err != nil {
@@ -64,7 +87,7 @@ func main() {
 		os.Exit(130)
 	}()
 
-	err = gatherVideos(channelUrl, *isUpdate, &safeVideoDataCollection)
+	err = gatherVideos(channelUrl, *isUpdate, &safeVideoDataCollection, maxVideoDetailFetchWorkers)
 	if err != nil {
 		slog.Warn(fmt.Sprintf("Unable to gather videos: %v", err.Error()))
 	}
@@ -87,7 +110,7 @@ func main() {
 	// n+1 (n = number of transcribe workers) concurrent workers for downloading and processing is sufficient
 	// as transcribing is the bottleneck. This can be increased to create
 	// a larger buffer of downloaded and processed videos
-	for range 3 {
+	for range maxDownloadAndProcessWorkers {
 		go downloadWorker(downloadQueue, processQueue, downloadDir, &safeVideoDataCollection)
 		go processWorker(processQueue, transcribeQueue, downloadDir, processedDir, &safeVideoDataCollection)
 	}
