@@ -353,6 +353,8 @@ func indexWorker(indexQueue <-chan string, transcriptsPath string, searchClient 
 	// batch uploading is recommended by meilisearch instead of uploading
 	// documents one by one
 	limiter := time.Tick(5 * time.Minute)
+	// higher batch sizes causes meilisearch to return 413 error
+	maxBatchSize := 10
 	var documents []Document
 	for {
 		select {
@@ -376,14 +378,19 @@ func indexWorker(indexQueue <-chan string, transcriptsPath string, searchClient 
 			if len(documents) == 0 {
 				continue
 			}
-			uploadDocumentsToMeilisearch(documents, searchClient, safeVideoDataCollection)
+			// limit max number of documents in a batch
+			batchSize := min(maxBatchSize, len(documents))
+			uploadBatch := documents[:batchSize]
+			uploadDocumentsToMeilisearch(uploadBatch, searchClient, safeVideoDataCollection)
 			// only call wg.Done() on the last step
 			// because all of the jobs that have completed the last step
 			// will be the sum of all the jobs input to all the pipelines
-			for range len(documents) {
+			for range batchSize {
 				wg.Done()
 			}
-			documents = nil
+			// remaining unuploaded documents that will be handled
+			// at next time tick
+			documents = documents[batchSize:]
 		}
 	}
 }
