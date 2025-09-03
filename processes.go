@@ -105,8 +105,11 @@ func addNewVideosToQueue(videosList string, safeVideoDataCollection *SafeVideoDa
 		go func() {
 			semaphore <- struct{}{}
 			defer wg.Done()
-			videoDetails := getVideoDetails(videoId)
+			videoDetails, err := getVideoDetails(videoId)
 			<-semaphore
+			if err != nil {
+				return
+			}
 			videoEntry.Status = "pending"
 			videoEntry.ReIndex = false
 			videoEntry.Title = videoDetails.Title
@@ -144,8 +147,11 @@ func addAndUpdateVideosInQueue(videosList string, safeVideoDataCollection *SafeV
 			go func() {
 				semaphore <- struct{}{}
 				defer wg.Done()
-				videoDetails := getVideoDetails(videoId)
+				videoDetails, err := getVideoDetails(videoId)
 				<-semaphore
+				if err != nil {
+					return
+				}
 				videoEntry.ReIndex = true
 				videoEntry.Title = videoDetails.Title
 				videoEntry.Id = videoDetails.Id
@@ -158,8 +164,11 @@ func addAndUpdateVideosInQueue(videosList string, safeVideoDataCollection *SafeV
 			go func() {
 				semaphore <- struct{}{}
 				defer wg.Done()
-				videoDetails := getVideoDetails(videoId)
+				videoDetails, err := getVideoDetails(videoId)
 				<-semaphore
+				if err != nil {
+					return
+				}
 				videoEntry.Status = "pending"
 				videoEntry.ReIndex = false
 				videoEntry.Title = videoDetails.Title
@@ -176,7 +185,7 @@ func addAndUpdateVideosInQueue(videosList string, safeVideoDataCollection *SafeV
 	slog.Info(fmt.Sprintf("%v new videos have been added to the queue and are pending download, %v video details have been updated", countNew, countUpdated))
 }
 
-func getVideoDetails(videoId string) VideoDetails {
+func getVideoDetails(videoId string) (VideoDetails, error) {
 	videoUrl := "https://www.youtube.com/watch?v=" + videoId
 	// title has to be last because title has spaces within it and space is used as a separator to split this string
 	cmdFetch := exec.Command("yt-dlp", "--print", "%(upload_date)s %(duration)s %(title)s", videoUrl)
@@ -187,7 +196,7 @@ func getVideoDetails(videoId string) VideoDetails {
 	outString = strings.TrimSuffix(outString, "\n")
 	if err != nil {
 		slog.Warn(fmt.Sprintf("Unable to get metadata for %s: %s %s", videoId, err.Error(), outString))
-		return VideoDetails{}
+		return VideoDetails{}, err
 	}
 	videoDetailsSlice := strings.SplitN(outString, " ", 3)
 	return VideoDetails{
@@ -195,7 +204,7 @@ func getVideoDetails(videoId string) VideoDetails {
 		Title:      videoDetailsSlice[2],
 		UploadDate: videoDetailsSlice[0],
 		Duration:   videoDetailsSlice[1],
-	}
+	}, nil
 
 }
 
@@ -360,7 +369,7 @@ func indexWorker(indexQueue <-chan string, transcriptsPath string, searchClient 
 	limiter := time.Tick(1 * time.Second)
 	// higher batch sizes causes meilisearch to return 413 error
 	// reduce this value if facing 413 errors
-	maxBatchSize := 5
+	maxBatchSize := 2
 	var documents []Document
 	for {
 		select {
