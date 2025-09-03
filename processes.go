@@ -348,7 +348,7 @@ func processWorker(processQueue <-chan string, transcribeQueue chan<- string, in
 	}
 }
 
-func transcribeWorker(transcribeQueue <-chan string, indexQueue chan<- string, inputPath string, outputPath string, modelPath string, safeVideoDataCollection *SafeVideoDataCollection, wg *sync.WaitGroup) {
+func transcribeWorker(transcribeQueue <-chan string, indexQueue chan<- string, inputPath string, outputPath string, modelPath string, safeVideoDataCollection *SafeVideoDataCollection) {
 	for job := range transcribeQueue {
 		err := transcribeVideo(job, inputPath, outputPath, modelPath, safeVideoDataCollection)
 		if err != nil {

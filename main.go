@@ -123,7 +123,7 @@ func main() {
 
 	// 1 is recommended, can be increased if more system resources are available to run multiple LLM processes at the same time
 	for range maxTranscribeWorkers {
-		go transcribeWorker(transcribeQueue, indexQueue, processedDir, transcriptsDir, whisperModelPath, &safeVideoDataCollection, &wg)
+		go transcribeWorker(transcribeQueue, indexQueue, processedDir, transcriptsDir, whisperModelPath, &safeVideoDataCollection)
 	}
 
 	// indexWorker uploades batches of json files to meilisearch, hence
