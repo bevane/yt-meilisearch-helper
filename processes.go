@@ -95,9 +95,10 @@ func addNewVideosToQueue(videosList string, safeVideoDataCollection *SafeVideoDa
 			continue
 		}
 
-		// if video details have already been recorded, skip
+		// if video details have already been recorded with metadata, skip
+		// entry.id will be blank if fetching metadata failed
 		videoEntry, ok := safeVideoDataCollection.Read(videoId)
-		if ok {
+		if ok && videoEntry.Id != "" {
 			continue
 		}
 
@@ -405,6 +406,12 @@ func indexWorker(indexQueue <-chan string, transcriptsPath string, searchClient 
 			}
 			document := Document{
 				Transcript: string(transcriptBytes),
+			}
+			if document.Id == "" {
+				slog.Error(fmt.Sprintf("Video metadata not available for: %s. Setting to reindex", job))
+				videoEntry.ReIndex = true
+				safeVideoDataCollection.Write(job, videoEntry)
+				continue
 			}
 			document.Id = videoEntry.Id
 			document.Title = videoEntry.Title
