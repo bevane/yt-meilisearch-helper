@@ -282,7 +282,12 @@ func uploadDocumentsToMeilisearch(documents []Document, searchClient meilisearch
 	if err != nil {
 		slog.Error(fmt.Sprintf("Unable to upload to index: %s", err.Error()))
 	} else {
-		slog.Info(fmt.Sprintf("Uploaded %v documents to search index: %v", len(documents), documents))
+		ids := make([]string, 0, len(documents))
+
+		for _, doc := range documents {
+			ids = append(ids, doc.Id)
+		}
+		slog.Info(fmt.Sprintf("Uploaded %v documents to search index: %v", len(documents), ids))
 		for _, document := range documents {
 			videoEntry, _ := safeVideoDataCollection.Read(document.Id)
 			videoEntry.Status = "indexed"
