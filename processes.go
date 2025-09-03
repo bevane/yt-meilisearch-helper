@@ -352,7 +352,7 @@ func indexWorker(indexQueue <-chan string, transcriptsPath string, searchClient 
 	// sending too many requests to meilisearch instance
 	// batch uploading is recommended by meilisearch instead of uploading
 	// documents one by one
-	limiter := time.Tick(5 * time.Minute)
+	limiter := time.Tick(1 * time.Minute)
 	// higher batch sizes causes meilisearch to return 413 error
 	maxBatchSize := 10
 	var documents []Document
