@@ -353,13 +353,14 @@ func transcribeWorker(transcribeQueue <-chan string, indexQueue chan<- string, i
 }
 
 func indexWorker(indexQueue <-chan string, transcriptsPath string, searchClient meilisearch.ServiceManager, safeVideoDataCollection *SafeVideoDataCollection, wg *sync.WaitGroup) {
-	// upload video documents to meilisearch every 5 minutes in batch to avoid
+	// upload video documents to meilisearch every second in batch to avoid
 	// sending too many requests to meilisearch instance
 	// batch uploading is recommended by meilisearch instead of uploading
 	// documents one by one
-	limiter := time.Tick(1 * time.Minute)
+	limiter := time.Tick(1 * time.Second)
 	// higher batch sizes causes meilisearch to return 413 error
-	maxBatchSize := 10
+	// reduce this value if facing 413 errors
+	maxBatchSize := 5
 	var documents []Document
 	for {
 		select {
