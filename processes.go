@@ -369,7 +369,7 @@ func indexWorker(indexQueue <-chan string, transcriptsPath string, searchClient 
 	limiter := time.Tick(1 * time.Second)
 	// higher batch sizes causes meilisearch to return 413 error
 	// reduce this value if facing 413 errors
-	maxBatchSize := 2
+	maxBatchSize := 5
 	var documents []Document
 	for {
 		select {
