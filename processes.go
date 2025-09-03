@@ -220,7 +220,10 @@ func downloadVideo(videoId string, safeVideoDataCollection *SafeVideoDataCollect
 	}
 
 	slog.Info(fmt.Sprintf("Downloaded video %s", videoId))
-	videoEntry, _ := safeVideoDataCollection.Read(videoId)
+	videoEntry, ok := safeVideoDataCollection.Read(videoId)
+	if !ok {
+		return fmt.Errorf("Download Error: Unable to find job: %v in video data collection", videoId)
+	}
 	videoEntry.Status = "downloaded"
 	safeVideoDataCollection.Write(videoId, videoEntry)
 	return nil
@@ -235,7 +238,10 @@ func processVideo(videoId string, inputPath string, outputPath string, safeVideo
 	_, err := os.Stat(outputFilePath)
 	if err == nil {
 		slog.Warn(fmt.Sprintf("Processed video for %s already exists, skipping processing, existing file will be used", videoId))
-		videoEntry, _ := safeVideoDataCollection.Read(videoId)
+		videoEntry, ok := safeVideoDataCollection.Read(videoId)
+		if !ok {
+			return fmt.Errorf("Process Error: Unable to find job: %v in video data collection", videoId)
+		}
 		videoEntry.Status = "processed"
 		safeVideoDataCollection.Write(videoId, videoEntry)
 		return nil
@@ -249,7 +255,10 @@ func processVideo(videoId string, inputPath string, outputPath string, safeVideo
 	}
 
 	slog.Info(fmt.Sprintf("Processed video %s", videoId))
-	videoEntry, _ := safeVideoDataCollection.Read(videoId)
+	videoEntry, ok := safeVideoDataCollection.Read(videoId)
+	if !ok {
+		return fmt.Errorf("Process Error: Unable to find job: %v in video data collection", videoId)
+	}
 	videoEntry.Status = "processed"
 	safeVideoDataCollection.Write(videoId, videoEntry)
 	return nil
@@ -264,7 +273,10 @@ func transcribeVideo(videoId string, inputPath string, outputPath string, modelP
 	_, err := os.Stat(outputFilePath + ".srt")
 	if err == nil {
 		slog.Warn(fmt.Sprintf("Transcript for video %s already exists, skippingtranscribing, existing file will be used", videoId))
-		videoEntry, _ := safeVideoDataCollection.Read(videoId)
+		videoEntry, ok := safeVideoDataCollection.Read(videoId)
+		if !ok {
+			return fmt.Errorf("Transcribe Error: Unable to find job: %v in video data collection", videoId)
+		}
 		videoEntry.Status = "transcribed"
 		safeVideoDataCollection.Write(videoId, videoEntry)
 		return nil
@@ -278,7 +290,10 @@ func transcribeVideo(videoId string, inputPath string, outputPath string, modelP
 	}
 
 	slog.Info(fmt.Sprintf("Transcribed video %s", videoId))
-	videoEntry, _ := safeVideoDataCollection.Read(videoId)
+	videoEntry, ok := safeVideoDataCollection.Read(videoId)
+	if !ok {
+		return fmt.Errorf("Transcribe Error: Unable to find job: %v in video data collection", videoId)
+	}
 	videoEntry.Status = "transcribed"
 	safeVideoDataCollection.Write(videoId, videoEntry)
 	return nil
@@ -298,7 +313,10 @@ func uploadDocumentsToMeilisearch(documents []Document, searchClient meilisearch
 		}
 		slog.Info(fmt.Sprintf("Uploaded %v documents to search index: %v", len(documents), ids))
 		for _, document := range documents {
-			videoEntry, _ := safeVideoDataCollection.Read(document.Id)
+			videoEntry, ok := safeVideoDataCollection.Read(document.Id)
+			if !ok {
+				continue
+			}
 			videoEntry.Status = "indexed"
 			videoEntry.ReIndex = false
 			safeVideoDataCollection.Write(document.Id, videoEntry)
@@ -374,7 +392,11 @@ func indexWorker(indexQueue <-chan string, transcriptsPath string, searchClient 
 	for {
 		select {
 		case job := <-indexQueue:
-			videoEntry, _ := safeVideoDataCollection.Read(job)
+			videoEntry, ok := safeVideoDataCollection.Read(job)
+			if !ok {
+				slog.Error(fmt.Sprintf("Index Error: Unable to find job: %v in video data collection", job))
+				continue
+			}
 			transcriptFilePath := filepath.Join(transcriptsPath, fmt.Sprintf("%s.srt", job))
 			transcriptBytes, err := os.ReadFile(transcriptFilePath)
 			if err != nil {
