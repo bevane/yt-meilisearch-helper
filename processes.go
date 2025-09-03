@@ -396,12 +396,14 @@ func indexWorker(indexQueue <-chan string, transcriptsPath string, searchClient 
 			videoEntry, ok := safeVideoDataCollection.Read(job)
 			if !ok {
 				slog.Error(fmt.Sprintf("Index Error: Unable to find job: %v in video data collection", job))
+				wg.Done()
 				continue
 			}
 			transcriptFilePath := filepath.Join(transcriptsPath, fmt.Sprintf("%s.srt", job))
 			transcriptBytes, err := os.ReadFile(transcriptFilePath)
 			if err != nil {
 				slog.Error(fmt.Sprintf("Unable to read srt file: %s", err.Error()))
+				wg.Done()
 				continue
 			}
 			document := Document{
@@ -411,6 +413,7 @@ func indexWorker(indexQueue <-chan string, transcriptsPath string, searchClient 
 				slog.Error(fmt.Sprintf("Video metadata not available for: %s. Setting to reindex", job))
 				videoEntry.ReIndex = true
 				safeVideoDataCollection.Write(job, videoEntry)
+				wg.Done()
 				continue
 			}
 			document.Id = videoEntry.Id
