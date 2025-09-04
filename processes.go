@@ -409,7 +409,7 @@ func indexWorker(indexQueue <-chan string, transcriptsPath string, searchClient 
 			document := Document{
 				Transcript: string(transcriptBytes),
 			}
-			if document.Id == "" {
+			if videoEntry.Id == "" {
 				slog.Error(fmt.Sprintf("Video metadata not available for: %s. Setting to reindex", job))
 				videoEntry.ReIndex = true
 				safeVideoDataCollection.Write(job, videoEntry)
